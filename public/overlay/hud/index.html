@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Оверлей — порог</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body data-overlay="hud">
+  <div id="hudGroup" class="hud-group">
+    <div id="toast" class="toast hidden"></div>
+    <div id="hud" class="hud hud-solo">
+      <div class="hud-top">
+        <span class="hud-label">До рулетки</span>
+        <strong id="hudProgress">0 / 100 ₽</strong>
+        <div class="hud-bar"><i id="hudBar"></i></div>
+      </div>
+      <div class="hud-bottom">
+        <div class="hud-chip">
+          <span>Порог</span>
+          <b id="hudThreshold">100 ₽</b>
+        </div>
+        <div class="hud-chip">
+          <span>Снижение</span>
+          <b id="hudReset">—</b>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="../app.js"></script>
+</body>
+</html>

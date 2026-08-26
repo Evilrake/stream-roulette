@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Рулетка — админка</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Стрим-рулетка</p>
+        <h1>Панель управления</h1>
+      </div>
+      <div class="status-row">
+        <span id="wsBadge" class="badge warn">WS…</span>
+        <span id="daBadge" class="badge">DA</span>
+        <span id="dpBadge" class="badge">DP</span>
+        <span id="dxBadge" class="badge">DX</span>
+        <button type="button" id="openRouletteBtn" class="btn">Окно рулетки</button>
+        <button type="button" id="openHudBtn" class="btn">Окно порога</button>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="panel obs-panel" data-panel="obs">
+        <button type="button" class="panel-toggle" aria-expanded="true">
+          <span class="panel-toggle-title">Ссылки для OBS</span>
+          <span class="panel-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="panel-body">
+          <p class="hint">
+            В OBS: Источники → Браузер (Browser Source). Добавь <strong>два</strong> источника.
+            Ширина/высота ниже — ориентир, фон оставь прозрачным. Приложение должно быть запущено.
+          </p>
+          <div class="obs-links">
+            <div class="obs-link-card">
+              <div class="obs-link-head">
+                <strong>1. Рулетка (прокрут)</strong>
+                <span class="obs-size">≈ 960 × 360</span>
+              </div>
+              <code id="obsRouletteUrl" class="obs-url">http://127.0.0.1:3847/overlay/roulette/</code>
+              <div class="actions">
+                <button type="button" class="btn primary" data-copy="obsRouletteUrl">Копировать</button>
+                <button type="button" class="btn" id="openObsRoulette">Открыть в браузере</button>
+              </div>
+            </div>
+            <div class="obs-link-card">
+              <div class="obs-link-head">
+                <strong>2. Порог (прогресс)</strong>
+                <span class="obs-size">≈ 560 × 420</span>
+              </div>
+              <code id="obsHudUrl" class="obs-url">http://127.0.0.1:3847/overlay/hud/</code>
+              <div class="actions">
+                <button type="button" class="btn primary" data-copy="obsHudUrl">Копировать</button>
+                <button type="button" class="btn" id="openObsHud">Открыть в браузере</button>
+              </div>
+            </div>
+          </div>
+          <p class="hint obs-alt">
+            Альтернатива одним источником (оба виджета вместе):
+            <code id="obsBothUrl">http://127.0.0.1:3847/overlay/</code>
+            <button type="button" class="btn" data-copy="obsBothUrl">Копировать</button>
+          </p>
+          <p id="copyToast" class="copy-toast hidden">Скопировано</p>
+        </div>
+      </article>
+
+      <article class="panel economy" data-panel="economy">
+        <button type="button" class="panel-toggle" aria-expanded="true">
+          <span class="panel-toggle-title">Экономика</span>
+          <span class="panel-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="panel-body">
+          <div class="meters">
+            <div class="meter">
+              <span class="label">Прогресс</span>
+              <strong id="progressText">0 / 100 ₽</strong>
+              <div class="bar"><i id="progressBar"></i></div>
+            </div>
+            <div class="meter small">
+              <span class="label">Текущий порог</span>
+              <strong id="thresholdText">100 ₽</strong>
+            </div>
+            <div class="meter small">
+              <span class="label">До снижения</span>
+              <strong id="resetText">—</strong>
+            </div>
+            <div class="meter small">
+              <span class="label">Очередь круток</span>
+              <strong id="queueText">0</strong>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <label>Базовый порог (₽)
+              <input type="number" id="baseThreshold" min="1" step="1" />
+            </label>
+            <label>Шаг роста после крутки (₽)
+              <input type="number" id="step" min="0" step="1" />
+            </label>
+            <label>Снижение порога без донатов (мин)
+              <input type="number" id="resetMinutes" min="1" step="1" />
+            </label>
+            <label>Задержка перед круткой (сек)
+              <input type="number" id="spinStartDelaySec" min="0" step="0.5" title="Пауза после доната до старта первой крутки" />
+            </label>
+          <label>Пауза между крутками (мс)
+            <input type="number" id="pauseBetweenSpinsMs" min="0" step="100" title="Задержка после одной крутки до следующей" />
+          </label>
+            <label>Появление рулетки
+              <select id="stripEnterDirection" title="Откуда выезжает рулетка перед круткой">
+                <option value="up">Снизу вверх</option>
+                <option value="down">Сверху вниз</option>
+              </select>
+            </label>
+          </div>
+          <div class="actions">
+            <button type="button" id="saveSettings" class="btn primary">Сохранить настройки</button>
+            <button type="button" id="toggleAccept" class="btn">Приём: …</button>
+            <label class="check">
+              <input type="checkbox" id="soundEnabled" />
+              Звук на оверлее
+            </label>
+          </div>
+          <div class="form-grid" style="margin-top:14px">
+            <label>Звук рулетки
+              <select id="soundPack">
+                <option value="classic">Классический</option>
+                <option value="soft">Мягкий</option>
+                <option value="arcade">Аркадный</option>
+                <option value="bell">Колокольчик</option>
+                <option value="custom">Свой файл</option>
+              </select>
+            </label>
+            <label>Громкость (%)
+              <input type="number" id="soundVolume" min="0" max="100" step="5" />
+            </label>
+            <label class="span-2" id="customSoundRow">Свой звук (mp3/wav/ogg)
+              <div class="sound-file-row">
+                <input type="text" id="soundCustomUrl" readonly placeholder="Файл не выбран" />
+                <label class="file-btn btn">
+                  Файл
+                  <input type="file" id="soundCustomFile" accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm,.mp3,.wav,.ogg" hidden />
+                </label>
+                <button type="button" id="clearCustomSoundBtn" class="btn">Сбросить</button>
+              </div>
+            </label>
+          </div>
+          <div class="actions">
+            <button type="button" id="applySoundBtn" class="btn primary">Применить звук</button>
+            <button type="button" id="previewSoundBtn" class="btn">Прослушать</button>
+          </div>
+          <p class="hint" id="soundHint">Стандартный звук или свой файл. После выбора нажми «Применить звук».</p>
+        </div>
+      </article>
+
+      <article class="panel tests" data-panel="tests">
+        <button type="button" class="panel-toggle" aria-expanded="true">
+          <span class="panel-toggle-title">Тест перед стримом</span>
+          <span class="panel-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="panel-body">
+          <p class="hint">Донаты здесь не идут во внешние платформы — только локальная логика рулетки.</p>
+          <div class="test-row">
+            <button type="button" class="btn" data-test="50">+50 ₽</button>
+            <button type="button" class="btn" data-test="100">+100 ₽</button>
+            <button type="button" class="btn" data-test="101">+101 ₽</button>
+            <button type="button" class="btn" data-test="200">+200 ₽</button>
+            <input type="number" id="customAmount" min="1" step="1" placeholder="Сумма" />
+            <button type="button" id="customDonate" class="btn primary">Тест-донат</button>
+          </div>
+          <div class="actions">
+            <button type="button" id="forceSpin" class="btn danger">Ручная крутка</button>
+            <button type="button" id="manualReset" class="btn">Сброс порога к базе</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel layout-panel" data-panel="layout">
+        <button type="button" class="panel-toggle" aria-expanded="true">
+          <span class="panel-toggle-title">Раскладка оверлея</span>
+          <span class="panel-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="panel-body">
+          <p class="hint">Включи режим правки и в окне оверлея перетащи блоки мышью. Здесь — масштаб, ширина и длина. Позицию X/Y меняй перетаскиванием.</p>
+          <div class="actions" style="margin-top:0">
+            <button type="button" id="toggleLayoutEdit" class="btn primary">Режим правки: ВЫКЛ</button>
+            <button type="button" id="resetLayout" class="btn">Сбросить раскладку</button>
+          </div>
+          <div class="form-grid" style="margin-top:14px">
+            <label>Лента масштаб
+              <input type="number" id="layoutStripScale" min="0.4" max="2.5" step="0.05" />
+            </label>
+            <label>Порог масштаб
+              <input type="number" id="layoutHudScale" min="0.4" max="3" step="0.05" />
+            </label>
+            <label>Лента длина (px)
+              <input type="number" id="layoutStripHeight" min="80" max="280" step="5" />
+            </label>
+            <label>Порог длина (px)
+              <input type="number" id="layoutHudHeight" min="0" max="400" step="10" title="0 = авто" placeholder="0 = авто" />
+            </label>
+            <label>Лента ширина (px)
+              <input type="number" id="layoutStripWidth" min="280" max="1600" step="10" />
+            </label>
+            <label>Порог ширина (px)
+              <input type="number" id="layoutHudWidth" min="120" max="600" step="10" />
+            </label>
+          </div>
+          <div class="actions">
+            <button type="button" id="saveLayout" class="btn primary">Сохранить раскладку</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel da-panel integrations-panel" data-panel="integrations">
+        <button type="button" class="panel-toggle" aria-expanded="true">
+          <span class="panel-toggle-title">Платформы донатов</span>
+          <span class="panel-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="panel-body">
+          <div class="integrations-head">
+            <p class="hint">
+              Выбери платформу в меню, подключи, затем открой следующую. Можно держать несколько сразу — донаты суммируются.
+            </p>
+            <div class="platform-menu" id="platformMenu">
+              <button type="button" class="btn platform-menu-btn" id="platformMenuBtn" aria-expanded="false" aria-haspopup="listbox">
+                <span class="platform-menu-icon" aria-hidden="true">☰</span>
+                <span id="platformMenuLabel">Donation Alerts</span>
+                <span class="platform-menu-caret" aria-hidden="true">▾</span>
+              </button>
+              <ul class="platform-menu-list" id="platformMenuList" role="listbox" hidden>
+                <li role="option">
+                  <button type="button" class="platform-menu-item is-active" data-platform="da">
+                    <span>Donation Alerts</span>
+                    <em class="platform-menu-status" data-status-for="da">…</em>
+                  </button>
+                </li>
+                <li role="option">
+                  <button type="button" class="platform-menu-item" data-platform="dp">
+                    <span>DonatePay</span>
+                    <em class="platform-menu-status" data-status-for="dp">…</em>
+                  </button>
+                </li>
+                <li role="option">
+                  <button type="button" class="platform-menu-item" data-platform="dx">
+                    <span>DonateX</span>
+                    <em class="platform-menu-status" data-status-for="dx">…</em>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="integration-block" data-platform-pane="da">
+            <h3>Donation Alerts</h3>
+            <p class="hint" id="daHint">
+              Создай приложение в DA, вставь ключи ниже и нажми «Сохранить и подключить».
+            </p>
+            <ol class="da-steps">
+              <li>Открой <a href="https://www.donationalerts.com/application/clients" target="_blank" rel="noopener">donationalerts.com/application/clients</a></li>
+              <li>Создай приложение. Redirect URI: <code id="daRedirect">http://127.0.0.1:3847/oauth/callback</code> (важно: именно <strong>127.0.0.1</strong>, не localhost)</li>
+              <li>Вставь Client ID и API Key приложения → «Сохранить и подключить» → войди в DA во всплывающем окне</li>
+            </ol>
+            <form id="daConfigForm" class="form-grid da-form">
+              <label class="span-2">Client ID
+                <input type="text" id="daClientId" autocomplete="off" placeholder="Из личного кабинета DA" />
+              </label>
+              <label class="span-2">API Key (secret)
+                <input type="password" id="daClientSecret" autocomplete="new-password" placeholder="Секрет приложения DA" />
+              </label>
+              <label class="span-2">Redirect URI
+                <input type="text" id="daRedirectInput" autocomplete="off" />
+              </label>
+            </form>
+            <p class="hint da-secret-hint" id="daSecretHint" hidden>
+              Secret уже сохранён — оставь поле пустым, если не меняешь ключ.
+            </p>
+            <div class="actions">
+              <button type="submit" form="daConfigForm" id="saveDaConfigBtn" class="btn primary">Сохранить и подключить</button>
+              <button type="button" id="connectDaBtn" class="btn">Переподключить</button>
+              <button type="button" id="disconnectDaBtn" class="btn">Отключить</button>
+            </div>
+            <p class="hint" id="daConfigLine">Ключи: …</p>
+            <p class="hint" id="daStatusLine">Статус: …</p>
+          </div>
+
+          <div class="integration-block" data-platform-pane="dp" hidden>
+            <h3>DonatePay</h3>
+            <ol class="da-steps">
+              <li>Открой <a href="https://donatepay.ru/page/api" target="_blank" rel="noopener">donatepay.ru/page/api</a> (для EU — donatepay.eu) и скопируй <strong>API access token</strong></li>
+              <li>Вставь токен ниже, выбери регион (.ru / .eu) → «Сохранить и подключить»</li>
+              <li>Бейдж <strong>DP: online</strong> — донаты DonatePay идут в рулетку</li>
+            </ol>
+            <form id="dpConfigForm" class="form-grid da-form">
+              <label class="span-2">API access token
+                <input type="password" id="dpAccessToken" autocomplete="new-password" placeholder="Токен из кабинета DonatePay" />
+              </label>
+              <label>Регион
+                <select id="dpRegion">
+                  <option value="ru">DonatePay.ru</option>
+                  <option value="eu">DonatePay.eu</option>
+                </select>
+              </label>
+            </form>
+            <p class="hint da-secret-hint" id="dpTokenHint" hidden>
+              Токен уже сохранён — оставь поле пустым, если не меняешь.
+            </p>
+            <div class="actions">
+              <button type="submit" form="dpConfigForm" class="btn primary">Сохранить и подключить</button>
+              <button type="button" id="connectDpBtn" class="btn">Переподключить</button>
+              <button type="button" id="disconnectDpBtn" class="btn">Отключить</button>
+            </div>
+            <p class="hint" id="dpConfigLine">Токен: …</p>
+            <p class="hint" id="dpStatusLine">Статус: …</p>
+          </div>
+
+          <div class="integration-block" data-platform-pane="dx" hidden>
+            <h3>DonateX</h3>
+            <ol class="da-steps">
+              <li>В кабинете <a href="https://admin.donatex.gg/" target="_blank" rel="noopener">DonateX</a> открой <strong>Настройки → «API и Доступ»</strong></li>
+              <li>Скопируй API-токен и вставь ниже → «Сохранить и подключить»</li>
+              <li>Бейдж <strong>DX: online</strong> — донаты DonateX идут в рулетку</li>
+            </ol>
+            <form id="dxConfigForm" class="form-grid da-form">
+              <label class="span-2">API-токен
+                <input type="password" id="dxAccessToken" autocomplete="new-password" placeholder="Токен из Настройки → API и Доступ" />
+              </label>
+            </form>
+            <p class="hint da-secret-hint" id="dxTokenHint" hidden>
+              Токен уже сохранён — оставь поле пустым, если не меняешь.
+            </p>
+            <div class="actions">
+              <button type="submit" form="dxConfigForm" class="btn primary">Сохранить и подключить</button>
+              <button type="button" id="connectDxBtn" class="btn">Переподключить</button>
+              <button type="button" id="disconnectDxBtn" class="btn">Отключить</button>
+            </div>
+            <p class="hint" id="dxConfigLine">Токен: …</p>
+            <p class="hint" id="dxStatusLine">Статус: …</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel tasks" data-panel="tasks">
+        <button type="button" class="panel-toggle" aria-expanded="true">
+          <span class="panel-toggle-title">Задания</span>
+          <span class="panel-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="panel-body">
+          <p class="hint">Спойлер — картинка на карточке до раскрытия (URL или загрузка файла).</p>
+          <form id="addTaskForm" class="add-task">
+            <input type="text" id="taskText" placeholder="Текст задания" required maxlength="80" />
+            <input type="number" id="taskWeight" min="0.1" step="0.1" value="1" title="Вес (шанс)" />
+            <input type="text" id="taskSpoiler" placeholder="URL спойлера (необязательно)" />
+            <label class="file-btn btn">
+              Файл
+              <input type="file" id="taskSpoilerFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+            </label>
+            <button type="submit" class="btn primary">Добавить</button>
+          </form>
+          <ul id="taskList" class="task-list"></ul>
+        </div>
+      </article>
+
+      <article class="panel log" data-panel="log">
+        <button type="button" class="panel-toggle" aria-expanded="true">
+          <span class="panel-toggle-title">Логи донатов и круток</span>
+          <span class="panel-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="panel-body">
+          <div class="log-section-head">
+            <h2>Последние донаты</h2>
+            <button type="button" id="clearDonationsBtn" class="btn">Очистить</button>
+          </div>
+          <ul id="donationLog" class="log-list"></ul>
+          <div class="log-section-head mt">
+            <h2>Последние крутки</h2>
+            <button type="button" id="clearSpinsBtn" class="btn">Очистить</button>
+          </div>
+          <ul id="spinLog" class="log-list"></ul>
+          <div class="actions">
+            <button type="button" id="clearAllLogsBtn" class="btn danger">Очистить оба списка</button>
+          </div>
+        </div>
+      </article>
+    </section>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

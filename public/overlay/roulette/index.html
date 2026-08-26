@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Оверлей — рулетка</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body data-overlay="roulette">
+  <div id="stage" class="stage hidden" aria-live="polite">
+    <p class="brand">РУЛЕТКА</p>
+    <div class="strip-frame">
+      <div class="strip-pointer"></div>
+      <div class="strip-fade strip-fade-left"></div>
+      <div class="strip-fade strip-fade-right"></div>
+      <div class="strip-viewport">
+        <div id="stripTrack" class="strip-track"></div>
+      </div>
+    </div>
+    <div id="result" class="result hidden">
+      <p class="result-viewer"><span id="resultViewer">Зритель</span> выбивает:</p>
+      <strong id="resultText"></strong>
+    </div>
+  </div>
+
+  <div id="editBanner" class="edit-banner hidden">Раскладка ленты: перетащи · колёсико = масштаб</div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="../app.js"></script>
+</body>
+</html>

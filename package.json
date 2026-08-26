@@ -1,0 +1,79 @@
+{
+  "name": "stream-roulette",
+  "version": "1.1.1",
+  "description": "Стрим-рулетка с Donation Alerts, DonatePay и DonateX: порог, шаг роста, автосброс, звук и анимация появления",
+  "author": "Stream Roulette",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server/index.js",
+    "dev": "electron .",
+    "dist": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win nsis",
+    "dist:dir": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win dir"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true,
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "local.stream.roulette",
+    "productName": "Стрим-рулетка",
+    "copyright": "Copyright © Stream Roulette",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "public/**/*",
+      "package.json",
+      "!**/*.map",
+      "!data/**/*",
+      "!.env"
+    ],
+    "extraResources": [
+      {
+        "from": ".env.example",
+        "to": ".env.example"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "StreamRoulette-Setup-${version}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Стрим-рулетка",
+      "uninstallDisplayName": "Стрим-рулетка",
+      "installerLanguages": [
+        "ru_RU",
+        "en_US"
+      ],
+      "language": "1049",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
