@@ -68,11 +68,13 @@ function saveClientConfig({ clientId, clientSecret, redirectUri }) {
   ensureDir();
   const current = loadSavedClientConfig() || {};
   const next = {
-    clientId: String(clientId || '').trim(),
+    clientId: cleanCredential(clientId || current.clientId),
     clientSecret: clientSecret
-      ? String(clientSecret).trim()
-      : String(current.clientSecret || '').trim(),
-    redirectUri: String(redirectUri || current.redirectUri || defaultRedirectUri()).trim()
+      ? cleanCredential(clientSecret)
+      : cleanCredential(current.clientSecret),
+    redirectUri: cleanCredential(
+      redirectUri || current.redirectUri || defaultRedirectUri()
+    )
   };
   if (!next.clientId) throw new Error('Client ID обязателен');
   if (!next.clientSecret) throw new Error('API Key (secret) обязателен');
@@ -80,30 +82,50 @@ function saveClientConfig({ clientId, clientSecret, redirectUri }) {
   return getClientConfigForApi();
 }
 
-function envOr(value, fallback = '') {
-  const v = value == null ? '' : String(value).trim();
-  return v || fallback;
+function cleanCredential(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .replace(/^["']+|["']+$/g, '')
+    .trim();
 }
 
+/**
+ * Ключи из админки (da-config.json) важнее .env —
+ * иначе старый/чужой .env даёт invalid_client при верных полях формы.
+ */
 function getClientConfig() {
   const saved = loadSavedClientConfig() || {};
+  const fileId = cleanCredential(saved.clientId);
+  const fileSecret = cleanCredential(saved.clientSecret);
+  const fileRedirect = cleanCredential(saved.redirectUri);
+  const envId = cleanCredential(process.env.DA_CLIENT_ID);
+  const envSecret = cleanCredential(process.env.DA_CLIENT_SECRET);
+  const envRedirect = cleanCredential(process.env.DA_REDIRECT_URI);
+
+  if (fileId && fileSecret) {
+    return {
+      clientId: fileId,
+      clientSecret: fileSecret,
+      redirectUri: fileRedirect || envRedirect || defaultRedirectUri()
+    };
+  }
+
   return {
-    clientId: envOr(process.env.DA_CLIENT_ID, saved.clientId || ''),
-    clientSecret: envOr(process.env.DA_CLIENT_SECRET, saved.clientSecret || ''),
-    redirectUri: envOr(
-      process.env.DA_REDIRECT_URI,
-      saved.redirectUri || defaultRedirectUri()
-    )
+    clientId: envId || fileId,
+    clientSecret: envSecret || fileSecret,
+    redirectUri: envRedirect || fileRedirect || defaultRedirectUri()
   };
 }
 
 function getClientConfigForApi() {
   const cfg = getClientConfig();
   const saved = loadSavedClientConfig();
-  const fromEnv = Boolean(
-    process.env.DA_CLIENT_ID ||
-      process.env.DA_CLIENT_SECRET ||
-      process.env.DA_REDIRECT_URI
+  const fileReady = Boolean(
+    cleanCredential(saved?.clientId) && cleanCredential(saved?.clientSecret)
+  );
+  const envReady = Boolean(
+    cleanCredential(process.env.DA_CLIENT_ID) &&
+      cleanCredential(process.env.DA_CLIENT_SECRET)
   );
   return {
     clientId: cfg.clientId,
@@ -111,7 +133,7 @@ function getClientConfigForApi() {
     hasClientSecret: Boolean(cfg.clientSecret),
     hasClientId: Boolean(cfg.clientId),
     configured: Boolean(cfg.clientId && cfg.clientSecret),
-    source: fromEnv ? 'env' : saved ? 'file' : 'none'
+    source: fileReady ? 'file' : envReady ? 'env' : saved ? 'file' : 'none'
   };
 }
 
@@ -150,6 +172,15 @@ async function exchangeCode(code) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.access_token) {
     const detail = data.error_description || data.error || `OAuth ${res.status}`;
+    const code = String(data.error || '');
+    if (code === 'invalid_client') {
+      throw new Error(
+        `${detail}. Неверный Client ID или API Key (secret). ` +
+          `Открой Donation Alerts → сверь пару ключей с кабинетом DA ` +
+          `(https://www.donationalerts.com/application/clients), сохрани заново и подключи. ` +
+          `Redirect URI: ${redirectUri}`
+      );
+    }
     throw new Error(
       `${detail}. Проверь, что Redirect URI в кабинете DA совпадает с: ${redirectUri}`
     );

@@ -99,6 +99,7 @@ function applyState(s) {
   applyIntegrationBadge('#dpBadge', '#dpStatusLine', donatepay, 'DP');
   applyIntegrationBadge('#dxBadge', '#dxStatusLine', donatex, 'DX');
   updatePlatformMenuStatuses({ da, donatepay, donatex });
+  syncPlatformModalAfterState();
 
   renderCategories(categories || []);
   renderLog('#donationLog', (recentDonations || []).map((d) => {
@@ -115,19 +116,21 @@ function applyState(s) {
 function applyIntegrationBadge(badgeSel, lineSel, status, label) {
   const badge = $(badgeSel);
   const line = $(lineSel);
-  if (!badge) return;
-  if (status?.connected) {
-    badge.textContent = `${label}: online`;
-    badge.className = 'badge ok';
-    badge.title = status.channel || '';
-    if (line) {
-      line.textContent = `Статус: online${status.channel ? ` · ${status.channel}` : ''}`;
+  if (badge) {
+    if (status?.connected) {
+      badge.textContent = `${label}: online`;
+      badge.className = 'badge ok';
+      badge.title = status.channel || '';
+    } else {
+      badge.textContent = `${label}: ${status?.error ? 'off' : '…'}`;
+      badge.className = 'badge warn';
+      badge.title = status?.error || '';
     }
-  } else {
-    badge.textContent = `${label}: ${status?.error ? 'off' : '…'}`;
-    badge.className = 'badge warn';
-    badge.title = status?.error || '';
-    if (line) line.textContent = `Статус: ${status?.error || 'нет подключения'}`;
+  }
+  if (line) {
+    line.textContent = status?.connected
+      ? `Статус: online${status.channel ? ` · ${status.channel}` : ''}`
+      : `Статус: ${status?.error || 'нет подключения'}`;
   }
 }
 
@@ -339,8 +342,10 @@ function renderCategories(categories) {
     });
 
     card.querySelector('.cat-toggle')?.addEventListener('click', async () => {
+      const live = (state?.categories || []).find((c) => c.id === id);
+      const currentlyEnabled = live ? live.enabled !== false : !card.classList.contains('is-disabled');
       await api('PATCH', `/api/categories/${id}`, {
-        enabled: !(cat?.enabled !== false)
+        enabled: !currentlyEnabled
       });
     });
 
@@ -393,6 +398,7 @@ function connectWs() {
   ws.onopen = () => {
     badge.textContent = 'WS: ok';
     badge.className = 'badge ok';
+    badge.title = 'WebSocket: связь админки с локальным сервером приложения';
   };
   ws.onclose = () => {
     badge.textContent = 'WS: reconnect…';
@@ -798,12 +804,19 @@ async function startDaOAuth() {
     const status = await fetch('/api/da/status').then((r) => r.json()).catch(() => null);
     if (status?.da?.connected) {
       showToastNear('#daStatusLine', 'Donation Alerts подключён');
+      closePlatformModal();
       return;
     }
     if (status?.hasSavedToken) {
       await api('POST', '/api/da/connect').catch(() => null);
       await loadDaPanel();
-      showToastNear('#daStatusLine', 'Токен получен, подключаем…');
+      const again = await fetch('/api/da/status').then((r) => r.json()).catch(() => null);
+      if (again?.da?.connected) {
+        showToastNear('#daStatusLine', 'Donation Alerts подключён');
+        closePlatformModal();
+      } else {
+        showToastNear('#daStatusLine', 'Токен получен, подключаем…');
+      }
       return;
     }
     if (result?.cancelled) {
@@ -896,6 +909,9 @@ const PLATFORM_LABELS = {
   dx: 'DonateX'
 };
 
+let activePlatformKey = 'da';
+let platformModalAwaitingConnect = false;
+
 function setPlatformMenuOpen(open) {
   const btn = $('#platformMenuBtn');
   const list = $('#platformMenuList');
@@ -904,21 +920,69 @@ function setPlatformMenuOpen(open) {
   btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
-function selectPlatform(platform) {
+function openPlatformModal(platform) {
   const key = PLATFORM_LABELS[platform] ? platform : 'da';
+  activePlatformKey = key;
+  const modal = $('#platformModal');
+  if (!modal) return;
+
   document.querySelectorAll('[data-platform-pane]').forEach((pane) => {
     pane.hidden = pane.getAttribute('data-platform-pane') !== key;
   });
   document.querySelectorAll('.platform-menu-item').forEach((item) => {
     item.classList.toggle('is-active', item.dataset.platform === key);
   });
+
+  const title = $('#platformModalTitle');
   const label = $('#platformMenuLabel');
+  if (title) title.textContent = PLATFORM_LABELS[key];
   if (label) label.textContent = PLATFORM_LABELS[key];
+
+  const map = { da: state?.da, dp: state?.donatepay, dx: state?.donatex };
+  platformModalAwaitingConnect = !map[key]?.connected;
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
   setPlatformMenuOpen(false);
+  updateHeaderPlatformStatus();
+
   try {
     localStorage.setItem('roulette.platformPane', key);
   } catch {
     /* ignore */
+  }
+
+  if (key === 'da') loadDaPanel();
+  if (key === 'dp') loadDonatePayPanel();
+  if (key === 'dx') loadDonateXPanel();
+}
+
+function closePlatformModal() {
+  const modal = $('#platformModal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+  platformModalAwaitingConnect = false;
+}
+
+function selectPlatform(platform) {
+  openPlatformModal(platform);
+}
+
+function updateHeaderPlatformStatus() {
+  const el = $('#platformHeaderStatus');
+  if (!el || !state) return;
+  const map = { da: state.da, dp: state.donatepay, dx: state.donatex };
+  const status = map[activePlatformKey];
+  el.classList.remove('is-online', 'is-offline');
+  if (status?.connected) {
+    el.textContent = 'online';
+    el.classList.add('is-online');
+  } else if (status?.error) {
+    el.textContent = 'off';
+    el.classList.add('is-offline');
+  } else {
+    el.textContent = '…';
   }
 }
 
@@ -938,6 +1002,19 @@ function updatePlatformMenuStatuses({ da, donatepay, donatex }) {
       el.textContent = '…';
     }
   });
+  updateHeaderPlatformStatus();
+}
+
+function maybeCloseModalAfterConnect(platformKey) {
+  if (!state) return;
+  const map = { da: state.da, dp: state.donatepay, dx: state.donatex };
+  if (map[platformKey]?.connected) closePlatformModal();
+}
+
+function syncPlatformModalAfterState() {
+  if (!platformModalAwaitingConnect) return;
+  if ($('#platformModal')?.classList.contains('hidden')) return;
+  maybeCloseModalAfterConnect(activePlatformKey);
 }
 
 $('#platformMenuBtn')?.addEventListener('click', (ev) => {
@@ -950,6 +1027,10 @@ document.querySelectorAll('.platform-menu-item').forEach((item) => {
   item.addEventListener('click', () => selectPlatform(item.dataset.platform));
 });
 
+document.querySelectorAll('[data-close-modal]').forEach((el) => {
+  el.addEventListener('click', () => closePlatformModal());
+});
+
 document.addEventListener('click', (ev) => {
   const menu = $('#platformMenu');
   if (!menu || menu.contains(ev.target)) return;
@@ -957,14 +1038,22 @@ document.addEventListener('click', (ev) => {
 });
 
 document.addEventListener('keydown', (ev) => {
-  if (ev.key === 'Escape') setPlatformMenuOpen(false);
+  if (ev.key === 'Escape') {
+    setPlatformMenuOpen(false);
+    closePlatformModal();
+  }
 });
 
 try {
-  selectPlatform(localStorage.getItem('roulette.platformPane') || 'da');
+  activePlatformKey = localStorage.getItem('roulette.platformPane') || 'da';
 } catch {
-  selectPlatform('da');
+  activePlatformKey = 'da';
 }
+const bootLabel = $('#platformMenuLabel');
+if (bootLabel) bootLabel.textContent = PLATFORM_LABELS[activePlatformKey] || PLATFORM_LABELS.da;
+document.querySelectorAll('.platform-menu-item').forEach((item) => {
+  item.classList.toggle('is-active', item.dataset.platform === activePlatformKey);
+});
 
 function showToastNear(anchorSel, text) {
   const toast = document.createElement('p');
@@ -1026,7 +1115,8 @@ function bindTokenPlatform({
   ui,
   successToast,
   emptyAlert,
-  buildConfigBody
+  buildConfigBody,
+  platformKey
 }) {
   async function reload() {
     try {
@@ -1054,6 +1144,11 @@ function bindTokenPlatform({
       if ($(tokenInputSel)) $(tokenInputSel).value = '';
       applyTokenConfig(res, ui);
       showToastNear(ui.configLineSel, successToast);
+      if (platformKey && state) {
+        const statusKey = platformKey === 'dp' ? 'donatepay' : 'donatex';
+        if (res[statusKey]) applyState({ ...state, [statusKey]: res[statusKey] });
+        maybeCloseModalAfterConnect(platformKey);
+      }
     } catch (err) {
       alert(String(err.message || err));
     }
@@ -1063,6 +1158,7 @@ function bindTokenPlatform({
     try {
       const res = await api('POST', connectUrl);
       if (res.error) throw new Error(res.error);
+      if (platformKey) maybeCloseModalAfterConnect(platformKey);
     } catch (err) {
       alert(String(err.message || err));
     }
@@ -1106,6 +1202,7 @@ const donatePayPlatform = bindTokenPlatform({
   ui: donatePayUi,
   successToast: 'DonatePay подключён',
   emptyAlert: 'Укажи API access token DonatePay.',
+  platformKey: 'dp',
   buildConfigBody: ({ accessToken }) => ({
     accessToken: accessToken || undefined,
     region: $('#dpRegion')?.value || 'ru'
@@ -1123,7 +1220,8 @@ const donateXPlatform = bindTokenPlatform({
   disconnectBtnSel: '#disconnectDxBtn',
   ui: donateXUi,
   successToast: 'DonateX подключён',
-  emptyAlert: 'Укажи API-токен DonateX.'
+  emptyAlert: 'Укажи API-токен DonateX.',
+  platformKey: 'dx'
 });
 
 function loadDonatePayPanel() {
