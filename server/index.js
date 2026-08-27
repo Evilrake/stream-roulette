@@ -145,6 +145,61 @@ function startServer(port = DEFAULT_PORT) {
     sendState(res);
   });
 
+  app.post('/api/categories', (req, res) => {
+    const categories = Array.isArray(req.body?.categories) ? req.body.categories : null;
+    if (!categories) {
+      res.status(400).json({ error: 'categories array required' });
+      return;
+    }
+    economy.setCategories(categories);
+    sendState(res);
+  });
+
+  app.post('/api/categories/add', (req, res) => {
+    const state = getState();
+    const cats = [...(state.categories || [])];
+    cats.push({
+      id: newId('cat'),
+      name: String(req.body?.name || 'Новая категория').trim() || 'Новая категория',
+      rarity: req.body?.rarity || 'common',
+      cardsText: String(req.body?.cardsText || '').trim(),
+      enabled: true,
+      spoiler: String(req.body?.spoiler || '').trim()
+    });
+    economy.setCategories(cats);
+    sendState(res);
+  });
+
+  app.patch('/api/categories/:id', (req, res) => {
+    const state = getState();
+    const cats = (state.categories || []).map((c) => {
+      if (c.id !== req.params.id) return c;
+      return {
+        ...c,
+        name: req.body.name != null ? String(req.body.name).trim() : c.name,
+        rarity: req.body.rarity != null ? req.body.rarity : c.rarity,
+        cardsText:
+          req.body.cardsText != null ? String(req.body.cardsText) : c.cardsText,
+        enabled: req.body.enabled != null ? Boolean(req.body.enabled) : c.enabled,
+        spoiler:
+          req.body.spoiler != null ? String(req.body.spoiler).trim() : c.spoiler || ''
+      };
+    });
+    economy.setCategories(cats);
+    sendState(res);
+  });
+
+  app.delete('/api/categories/:id', (req, res) => {
+    const cats = (getState().categories || []).filter((c) => c.id !== req.params.id);
+    if (!cats.length) {
+      res.status(400).json({ error: 'Нужна хотя бы одна категория' });
+      return;
+    }
+    economy.setCategories(cats);
+    sendState(res);
+  });
+
+  // Совместимость со старым API заданий
   app.post('/api/tasks', (req, res) => {
     const tasks = Array.isArray(req.body?.tasks) ? req.body.tasks : null;
     if (!tasks) {
@@ -162,42 +217,6 @@ function startServer(port = DEFAULT_PORT) {
     economy.setTasks(normalized);
     sendState(res);
   });
-
-  app.post('/api/tasks/add', (req, res) => {
-    const text = String(req.body?.text || '').trim();
-    const weight = Math.max(0.1, Number(req.body?.weight) || 1);
-    const spoiler = String(req.body?.spoiler || '').trim();
-    if (!text) {
-      res.status(400).json({ error: 'text required' });
-      return;
-    }
-    const tasks = [...getState().tasks, { id: newId('task'), text, weight, spoiler }];
-    economy.setTasks(tasks);
-    sendState(res);
-  });
-
-  app.delete('/api/tasks/:id', (req, res) => {
-    const tasks = getState().tasks.filter((t) => t.id !== req.params.id);
-    economy.setTasks(tasks);
-    sendState(res);
-  });
-
-  app.patch('/api/tasks/:id', (req, res) => {
-    const tasks = getState().tasks.map((t) => {
-      if (t.id !== req.params.id) return t;
-      return {
-        ...t,
-        text: req.body.text != null ? String(req.body.text).trim() : t.text,
-        weight:
-          req.body.weight != null ? Math.max(0.1, Number(req.body.weight) || 1) : t.weight,
-        spoiler:
-          req.body.spoiler != null ? String(req.body.spoiler).trim() : t.spoiler || ''
-      };
-    });
-    economy.setTasks(tasks);
-    sendState(res);
-  });
-
   app.post('/api/upload/spoiler', (req, res) => {
     const result = saveDataUrlUpload({
       dataUrl: req.body?.dataUrl,

@@ -1,6 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const { getDataDir } = require('./paths');
+const {
+  createDefaultCategory,
+  ensureCategories,
+  expandCategoriesToTasks
+} = require('./categories');
 
 function stateFile() {
   return path.join(getDataDir(), 'state.json');
@@ -42,16 +47,18 @@ const DEFAULT_STATE = {
     lastDonationAt: null,
     lastSpinAt: null
   },
-  tasks: [
-    { id: 't1', text: 'Отжимания x20', weight: 2, spoiler: '' },
-    { id: 't2', text: 'Песня в войс-чат', weight: 1, spoiler: '' },
-    { id: 't3', text: 'История из жизни', weight: 2, spoiler: '' },
-    { id: 't4', text: 'Стример выбирает сам', weight: 1, spoiler: '' }
-  ],
+  categories: [createDefaultCategory()],
+  tasks: [],
   recentDonations: [],
   recentSpins: [],
   processedDonationIds: []
 };
+
+function syncTasksFromCategories(state) {
+  state.categories = ensureCategories(state);
+  state.tasks = expandCategoriesToTasks(state.categories);
+  return state;
+}
 
 function ensureDataDir() {
   const dir = getDataDir();
@@ -64,13 +71,15 @@ function loadState() {
   ensureDataDir();
   const file = stateFile();
   if (!fs.existsSync(file)) {
-    saveState(DEFAULT_STATE);
-    return structuredClone(DEFAULT_STATE);
+    const fresh = structuredClone(DEFAULT_STATE);
+    syncTasksFromCategories(fresh);
+    saveState(fresh);
+    return fresh;
   }
   try {
     const raw = fs.readFileSync(file, 'utf8');
     const parsed = JSON.parse(raw);
-    return {
+    const state = {
       ...structuredClone(DEFAULT_STATE),
       ...parsed,
       settings: {
@@ -82,15 +91,20 @@ function loadState() {
         }
       },
       economy: { ...DEFAULT_STATE.economy, ...(parsed.economy || {}) },
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : DEFAULT_STATE.tasks,
+      categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
       recentDonations: Array.isArray(parsed.recentDonations) ? parsed.recentDonations : [],
       recentSpins: Array.isArray(parsed.recentSpins) ? parsed.recentSpins : [],
       processedDonationIds: Array.isArray(parsed.processedDonationIds)
         ? parsed.processedDonationIds
         : []
     };
+    syncTasksFromCategories(state);
+    return state;
   } catch {
-    return structuredClone(DEFAULT_STATE);
+    const fresh = structuredClone(DEFAULT_STATE);
+    syncTasksFromCategories(fresh);
+    return fresh;
   }
 }
 
@@ -110,5 +124,6 @@ module.exports = {
   DEFAULT_STATE,
   loadState,
   saveState,
-  newId
+  newId,
+  syncTasksFromCategories
 };

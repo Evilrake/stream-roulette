@@ -44,7 +44,7 @@ function fmtReset(ms) {
 
 function applyState(s) {
   state = s;
-  const { economy, settings, tasks, recentDonations, recentSpins, queueLength, da, donatepay, donatex } = s;
+  const { economy, settings, tasks, categories, recentDonations, recentSpins, queueLength, da, donatepay, donatex } = s;
 
   const shownProgress = economy.displayProgress ?? economy.progress;
   const pct = economy.currentThreshold
@@ -99,8 +99,9 @@ function applyState(s) {
   applyIntegrationBadge('#dpBadge', '#dpStatusLine', donatepay, 'DP');
   applyIntegrationBadge('#dxBadge', '#dxStatusLine', donatex, 'DX');
   updatePlatformMenuStatuses({ da, donatepay, donatex });
+  syncPlatformModalAfterState();
 
-  renderTasks(tasks || []);
+  renderCategories(categories || []);
   renderLog('#donationLog', (recentDonations || []).map((d) => {
     const when = new Date(d.at).toLocaleTimeString('ru-RU');
     return `<li><strong>${money(d.amount)}</strong> — ${escapeHtml(d.username)} <em>(${escapeHtml(d.source)})</em> · ${when}</li>`;
@@ -115,19 +116,21 @@ function applyState(s) {
 function applyIntegrationBadge(badgeSel, lineSel, status, label) {
   const badge = $(badgeSel);
   const line = $(lineSel);
-  if (!badge) return;
-  if (status?.connected) {
-    badge.textContent = `${label}: online`;
-    badge.className = 'badge ok';
-    badge.title = status.channel || '';
-    if (line) {
-      line.textContent = `Статус: online${status.channel ? ` · ${status.channel}` : ''}`;
+  if (badge) {
+    if (status?.connected) {
+      badge.textContent = `${label}: online`;
+      badge.className = 'badge ok';
+      badge.title = status.channel || '';
+    } else {
+      badge.textContent = `${label}: ${status?.error ? 'off' : '…'}`;
+      badge.className = 'badge warn';
+      badge.title = status?.error || '';
     }
-  } else {
-    badge.textContent = `${label}: ${status?.error ? 'off' : '…'}`;
-    badge.className = 'badge warn';
-    badge.title = status?.error || '';
-    if (line) line.textContent = `Статус: ${status?.error || 'нет подключения'}`;
+  }
+  if (line) {
+    line.textContent = status?.connected
+      ? `Статус: online${status.channel ? ` · ${status.channel}` : ''}`
+      : `Статус: ${status?.error || 'нет подключения'}`;
   }
 }
 
@@ -143,141 +146,227 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function captureTaskUiFocus() {
+const RARITIES = [
+  { id: 'common', label: 'Обычная', weight: 50 },
+  { id: 'uncommon', label: 'Необычная', weight: 25 },
+  { id: 'rare', label: 'Редкая', weight: 15 },
+  { id: 'epic', label: 'Эпическая', weight: 7 },
+  { id: 'legendary', label: 'Легендарная', weight: 3 }
+];
+
+function rarityWeight(id) {
+  return RARITIES.find((r) => r.id === id)?.weight ?? 50;
+}
+
+function parseCardsClient(text) {
+  return String(text || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function categoryDropChance(categories, categoryId) {
+  const active = (categories || []).filter(
+    (c) => c && c.enabled !== false && parseCardsClient(c.cardsText).length > 0
+  );
+  const total = active.reduce((s, c) => s + rarityWeight(c.rarity), 0);
+  if (total <= 0) return 0;
+  const cat = active.find((c) => c.id === categoryId);
+  if (!cat) return 0;
+  return Math.round((rarityWeight(cat.rarity) / total) * 1000) / 10;
+}
+
+function captureCategoryFocus() {
   const el = document.activeElement;
-  if (!el || el === document.body) return null;
-  const form = $('#addTaskForm');
-  if (form?.contains(el) && el.id) {
-    return {
-      kind: 'add',
-      id: el.id,
-      start: el.selectionStart,
-      end: el.selectionEnd
-    };
-  }
-  const list = $('#taskList');
-  if (!list?.contains(el)) return null;
-  const li = el.closest('li[data-id]');
-  if (!li) return null;
-  let field = null;
-  if (el.classList.contains('task-text')) field = 'task-text';
-  else if (el.classList.contains('task-weight')) field = 'task-weight';
-  else if (el.classList.contains('task-spoiler')) field = 'task-spoiler';
-  if (!field) return null;
+  const list = $('#categoryList');
+  if (!el || !list?.contains(el)) return null;
+  const card = el.closest('[data-id]');
+  if (!card) return null;
   return {
-    kind: 'edit',
-    taskId: li.dataset.id,
-    field,
+    id: card.dataset.id,
+    field: el.dataset.field || el.className,
     start: el.selectionStart,
     end: el.selectionEnd,
-    text: li.querySelector('.task-text')?.value,
-    weight: li.querySelector('.task-weight')?.value,
-    spoiler: li.querySelector('.task-spoiler')?.value
+    tag: el.tagName
   };
 }
 
-function restoreTaskUiFocus(focus) {
-  if (!focus) return;
-  const apply = () => {
-    let el = null;
-    if (focus.kind === 'add') {
-      el = document.getElementById(focus.id);
-    } else if (focus.kind === 'edit' && focus.taskId && focus.field) {
-      const id =
-        typeof CSS !== 'undefined' && CSS.escape
-          ? CSS.escape(focus.taskId)
-          : focus.taskId.replace(/"/g, '\\"');
-      el = document.querySelector(`#taskList li[data-id="${id}"] .${focus.field}`);
-    }
+function restoreCategoryFocus(focus) {
+  if (!focus?.id) return;
+  requestAnimationFrame(() => {
+    const id =
+      typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(focus.id)
+        : focus.id.replace(/"/g, '\\"');
+    const card = document.querySelector(`#categoryList [data-id="${id}"]`);
+    if (!card) return;
+    const el =
+      (focus.field && card.querySelector(`[data-field="${focus.field}"]`)) ||
+      card.querySelector('.category-title');
     if (!el) return;
     el.focus({ preventScroll: true });
     if (typeof focus.start === 'number' && typeof el.setSelectionRange === 'function') {
       try {
         const len = el.value?.length ?? 0;
-        const start = Math.min(focus.start, len);
-        const end = Math.min(focus.end ?? focus.start, len);
-        el.setSelectionRange(start, end);
+        el.setSelectionRange(
+          Math.min(focus.start, len),
+          Math.min(focus.end ?? focus.start, len)
+        );
       } catch {
-        /* number/email inputs may throw */
+        /* ignore */
       }
     }
-  };
-  requestAnimationFrame(apply);
+  });
 }
 
-let lastRenderedTaskIds = '';
+let lastCategoryIds = '';
+const categoryExtraOpen = new Set();
 
-function renderTasks(tasks) {
-  const list = $('#taskList');
-  const focus = captureTaskUiFocus();
-  const items = tasks || [];
-  const ids = items.map((t) => t.id).join('\0');
+function renderCategories(categories) {
+  const list = $('#categoryList');
+  if (!list) return;
+  const focus = captureCategoryFocus();
+  const items = categories || [];
+  const ids = items.map((c) => c.id).join('\0');
 
-  // Пока печатают в строке задания — не ломаем DOM ответом API/WS
-  if (
-    focus?.kind === 'edit' &&
-    ids === lastRenderedTaskIds &&
-    list.querySelector(
-      `li[data-id="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(focus.taskId) : focus.taskId}"]`
-    )
-  ) {
+  const updateChances = () => {
+    items.forEach((c) => {
+      const esc =
+        typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(c.id) : c.id;
+      const chanceEl = list.querySelector(
+        `[data-id="${esc}"] .category-chance-value`
+      );
+      if (chanceEl) {
+        chanceEl.textContent = `${categoryDropChance(items, c.id)}%`;
+      }
+      const card = list.querySelector(`[data-id="${esc}"]`);
+      if (card) {
+        card.classList.toggle('is-disabled', c.enabled === false);
+        const toggle = card.querySelector('.cat-toggle');
+        if (toggle) {
+          toggle.classList.toggle('is-off', c.enabled === false);
+          toggle.title =
+            c.enabled === false ? 'Включить категорию' : 'Выключить категорию';
+        }
+      }
+    });
+  };
+
+  // Пока печатают в категории — не пересобираем DOM
+  if (focus && ids === lastCategoryIds && list.querySelector(`[data-id]`)) {
+    updateChances();
     return;
   }
-
-  lastRenderedTaskIds = ids;
+  lastCategoryIds = ids;
 
   if (!items.length) {
     list.innerHTML =
-      '<li style="grid-column:1/-1;color:var(--muted)">Нет заданий — крутка не запустится</li>';
-    restoreTaskUiFocus(focus?.kind === 'add' ? focus : null);
+      '<p class="hint">Нет категорий — добавь хотя бы одну, иначе крутка не запустится.</p>';
     return;
   }
 
+  const rarityOptions = RARITIES.map(
+    (r) => `<option value="${r.id}">${r.label}</option>`
+  ).join('');
+
   list.innerHTML = items
-    .map((t) => {
-      let text = t.text;
-      let weight = t.weight;
-      let spoiler = t.spoiler || '';
-      if (focus?.kind === 'edit' && focus.taskId === t.id) {
-        if (focus.text != null) text = focus.text;
-        if (focus.weight != null) weight = focus.weight;
-        if (focus.spoiler != null) spoiler = focus.spoiler;
-      }
-      const preview = spoiler
-        ? `<img class="task-preview" src="${escapeHtml(spoiler)}" alt="" />`
-        : `<div class="task-preview empty">—</div>`;
+    .map((c) => {
+      const chance = categoryDropChance(items, c.id);
+      const enabled = c.enabled !== false;
+      const extraOpen = categoryExtraOpen.has(c.id);
       return `
-    <li data-id="${escapeHtml(t.id)}">
-      <input type="text" class="task-text" value="${escapeHtml(text)}" />
-      <input type="number" class="task-weight" min="0.1" step="0.1" value="${escapeHtml(String(weight))}" title="Вес" />
-      <input type="text" class="task-spoiler" value="${escapeHtml(spoiler)}" placeholder="URL спойлера" />
-      ${preview}
-      <button type="button" class="del" title="Удалить">✕</button>
-    </li>`;
+      <article class="category-card${!enabled ? ' is-disabled' : ''}" data-id="${escapeHtml(c.id)}">
+        <div class="category-head">
+          <input type="text" class="category-title" data-field="name" maxlength="80"
+            value="${escapeHtml(c.name || 'Категория')}" title="Название категории" />
+          <div class="category-actions">
+            <button type="button" class="category-icon-btn cat-toggle${!enabled ? ' is-off' : ''}"
+              title="${enabled ? 'Выключить категорию' : 'Включить категорию'}" aria-label="Видимость">
+              <svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <button type="button" class="category-icon-btn cat-gear" title="Дополнительно" aria-label="Настройки">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+            </button>
+            <button type="button" class="category-icon-btn danger cat-del" title="Удалить" aria-label="Удалить">
+              <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="category-field">
+          <label class="category-label">Карточки</label>
+          <textarea class="category-cards" data-field="cardsText" rows="2"
+            placeholder="Прыгнуть, Присесть, Выпить чаю">${escapeHtml(c.cardsText || '')}</textarea>
+        </div>
+        <div class="category-field">
+          <label class="category-label">Редкость</label>
+          <div class="category-rarity-wrap">
+            <select class="category-rarity" data-field="rarity">${rarityOptions}</select>
+          </div>
+        </div>
+        <div class="category-field">
+          <label class="category-label">Шанс выпадения</label>
+          <div class="category-chance">
+            <span class="category-chance-value">${chance}%</span>
+            <span class="category-chance-help" title="Считается от редкости среди включённых категорий с карточками">?</span>
+          </div>
+        </div>
+        <div class="category-extra"${extraOpen ? '' : ' hidden'}>
+          <div class="category-field">
+            <label class="category-label">Спойлер (URL картинки на карточках)</label>
+            <input type="text" class="category-spoiler" data-field="spoiler"
+              value="${escapeHtml(c.spoiler || '')}" placeholder="Необязательно" />
+          </div>
+        </div>
+      </article>`;
     })
     .join('');
 
-  list.querySelectorAll('li').forEach((li) => {
-    const id = li.dataset.id;
-    li.querySelector('.del').onclick = async () => {
-      await api('DELETE', `/api/tasks/${id}`);
-    };
+  list.querySelectorAll('.category-card').forEach((card) => {
+    const id = card.dataset.id;
+    const cat = items.find((c) => c.id === id);
+    const raritySel = card.querySelector('.category-rarity');
+    if (raritySel && cat) raritySel.value = cat.rarity || 'common';
+
     const save = debounce(async () => {
-      const text = li.querySelector('.task-text').value;
-      const weight = li.querySelector('.task-weight').value;
-      const spoiler = li.querySelector('.task-spoiler').value;
-      await api('PATCH', `/api/tasks/${id}`, {
-        text,
-        weight: Number(weight),
-        spoiler
+      await api('PATCH', `/api/categories/${id}`, {
+        name: card.querySelector('[data-field="name"]')?.value,
+        cardsText: card.querySelector('[data-field="cardsText"]')?.value,
+        rarity: card.querySelector('[data-field="rarity"]')?.value,
+        spoiler: card.querySelector('[data-field="spoiler"]')?.value
       });
     }, 400);
-    li.querySelector('.task-text').oninput = save;
-    li.querySelector('.task-weight').oninput = save;
-    li.querySelector('.task-spoiler').oninput = save;
+
+    card.querySelectorAll('[data-field]').forEach((el) => {
+      el.addEventListener('input', save);
+      el.addEventListener('change', save);
+    });
+
+    card.querySelector('.cat-toggle')?.addEventListener('click', async () => {
+      const live = (state?.categories || []).find((c) => c.id === id);
+      const currentlyEnabled = live ? live.enabled !== false : !card.classList.contains('is-disabled');
+      await api('PATCH', `/api/categories/${id}`, {
+        enabled: !currentlyEnabled
+      });
+    });
+
+    card.querySelector('.cat-gear')?.addEventListener('click', () => {
+      if (categoryExtraOpen.has(id)) categoryExtraOpen.delete(id);
+      else categoryExtraOpen.add(id);
+      const extra = card.querySelector('.category-extra');
+      if (extra) extra.hidden = !categoryExtraOpen.has(id);
+    });
+
+    card.querySelector('.cat-del')?.addEventListener('click', async () => {
+      if (items.length <= 1) {
+        alert('Нужна хотя бы одна категория.');
+        return;
+      }
+      if (!confirm('Удалить категорию?')) return;
+      await api('DELETE', `/api/categories/${id}`);
+    });
   });
 
-  restoreTaskUiFocus(focus);
+  restoreCategoryFocus(focus);
 }
 
 function debounce(fn, ms) {
@@ -309,6 +398,7 @@ function connectWs() {
   ws.onopen = () => {
     badge.textContent = 'WS: ok';
     badge.className = 'badge ok';
+    badge.title = 'WebSocket: связь админки с локальным сервером приложения';
   };
   ws.onclose = () => {
     badge.textContent = 'WS: reconnect…';
@@ -605,31 +695,13 @@ $('#resetLayout').onclick = async () => {
   });
 };
 
-$('#addTaskForm').onsubmit = async (e) => {
-  e.preventDefault();
-  const text = $('#taskText').value.trim();
-  const weight = Number($('#taskWeight').value) || 1;
-  const spoiler = $('#taskSpoiler').value.trim();
-  if (!text) {
-    $('#taskText').focus();
-    return;
-  }
-  await api('POST', '/api/tasks/add', { text, weight, spoiler });
-  $('#taskText').value = '';
-  $('#taskSpoiler').value = '';
-  $('#taskSpoilerFile').value = '';
-  $('#taskText').focus();
-};
-
-$('#taskSpoilerFile').onchange = async () => {
-  const file = $('#taskSpoilerFile').files?.[0];
-  if (!file) return;
-  const dataUrl = await readFileAsDataUrl(file);
-  const res = await api('POST', '/api/upload/spoiler', { dataUrl });
-  if (res.url) {
-    $('#taskSpoiler').value = res.url;
-  }
-};
+$('#addCategoryBtn')?.addEventListener('click', async () => {
+  await api('POST', '/api/categories/add', {
+    name: 'Новая категория',
+    rarity: 'common',
+    cardsText: ''
+  });
+});
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -732,12 +804,19 @@ async function startDaOAuth() {
     const status = await fetch('/api/da/status').then((r) => r.json()).catch(() => null);
     if (status?.da?.connected) {
       showToastNear('#daStatusLine', 'Donation Alerts подключён');
+      closePlatformModal();
       return;
     }
     if (status?.hasSavedToken) {
       await api('POST', '/api/da/connect').catch(() => null);
       await loadDaPanel();
-      showToastNear('#daStatusLine', 'Токен получен, подключаем…');
+      const again = await fetch('/api/da/status').then((r) => r.json()).catch(() => null);
+      if (again?.da?.connected) {
+        showToastNear('#daStatusLine', 'Donation Alerts подключён');
+        closePlatformModal();
+      } else {
+        showToastNear('#daStatusLine', 'Токен получен, подключаем…');
+      }
       return;
     }
     if (result?.cancelled) {
@@ -830,6 +909,9 @@ const PLATFORM_LABELS = {
   dx: 'DonateX'
 };
 
+let activePlatformKey = 'da';
+let platformModalAwaitingConnect = false;
+
 function setPlatformMenuOpen(open) {
   const btn = $('#platformMenuBtn');
   const list = $('#platformMenuList');
@@ -838,21 +920,69 @@ function setPlatformMenuOpen(open) {
   btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
-function selectPlatform(platform) {
+function openPlatformModal(platform) {
   const key = PLATFORM_LABELS[platform] ? platform : 'da';
+  activePlatformKey = key;
+  const modal = $('#platformModal');
+  if (!modal) return;
+
   document.querySelectorAll('[data-platform-pane]').forEach((pane) => {
     pane.hidden = pane.getAttribute('data-platform-pane') !== key;
   });
   document.querySelectorAll('.platform-menu-item').forEach((item) => {
     item.classList.toggle('is-active', item.dataset.platform === key);
   });
+
+  const title = $('#platformModalTitle');
   const label = $('#platformMenuLabel');
+  if (title) title.textContent = PLATFORM_LABELS[key];
   if (label) label.textContent = PLATFORM_LABELS[key];
+
+  const map = { da: state?.da, dp: state?.donatepay, dx: state?.donatex };
+  platformModalAwaitingConnect = !map[key]?.connected;
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
   setPlatformMenuOpen(false);
+  updateHeaderPlatformStatus();
+
   try {
     localStorage.setItem('roulette.platformPane', key);
   } catch {
     /* ignore */
+  }
+
+  if (key === 'da') loadDaPanel();
+  if (key === 'dp') loadDonatePayPanel();
+  if (key === 'dx') loadDonateXPanel();
+}
+
+function closePlatformModal() {
+  const modal = $('#platformModal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+  platformModalAwaitingConnect = false;
+}
+
+function selectPlatform(platform) {
+  openPlatformModal(platform);
+}
+
+function updateHeaderPlatformStatus() {
+  const el = $('#platformHeaderStatus');
+  if (!el || !state) return;
+  const map = { da: state.da, dp: state.donatepay, dx: state.donatex };
+  const status = map[activePlatformKey];
+  el.classList.remove('is-online', 'is-offline');
+  if (status?.connected) {
+    el.textContent = 'online';
+    el.classList.add('is-online');
+  } else if (status?.error) {
+    el.textContent = 'off';
+    el.classList.add('is-offline');
+  } else {
+    el.textContent = '…';
   }
 }
 
@@ -872,6 +1002,19 @@ function updatePlatformMenuStatuses({ da, donatepay, donatex }) {
       el.textContent = '…';
     }
   });
+  updateHeaderPlatformStatus();
+}
+
+function maybeCloseModalAfterConnect(platformKey) {
+  if (!state) return;
+  const map = { da: state.da, dp: state.donatepay, dx: state.donatex };
+  if (map[platformKey]?.connected) closePlatformModal();
+}
+
+function syncPlatformModalAfterState() {
+  if (!platformModalAwaitingConnect) return;
+  if ($('#platformModal')?.classList.contains('hidden')) return;
+  maybeCloseModalAfterConnect(activePlatformKey);
 }
 
 $('#platformMenuBtn')?.addEventListener('click', (ev) => {
@@ -884,6 +1027,10 @@ document.querySelectorAll('.platform-menu-item').forEach((item) => {
   item.addEventListener('click', () => selectPlatform(item.dataset.platform));
 });
 
+document.querySelectorAll('[data-close-modal]').forEach((el) => {
+  el.addEventListener('click', () => closePlatformModal());
+});
+
 document.addEventListener('click', (ev) => {
   const menu = $('#platformMenu');
   if (!menu || menu.contains(ev.target)) return;
@@ -891,14 +1038,22 @@ document.addEventListener('click', (ev) => {
 });
 
 document.addEventListener('keydown', (ev) => {
-  if (ev.key === 'Escape') setPlatformMenuOpen(false);
+  if (ev.key === 'Escape') {
+    setPlatformMenuOpen(false);
+    closePlatformModal();
+  }
 });
 
 try {
-  selectPlatform(localStorage.getItem('roulette.platformPane') || 'da');
+  activePlatformKey = localStorage.getItem('roulette.platformPane') || 'da';
 } catch {
-  selectPlatform('da');
+  activePlatformKey = 'da';
 }
+const bootLabel = $('#platformMenuLabel');
+if (bootLabel) bootLabel.textContent = PLATFORM_LABELS[activePlatformKey] || PLATFORM_LABELS.da;
+document.querySelectorAll('.platform-menu-item').forEach((item) => {
+  item.classList.toggle('is-active', item.dataset.platform === activePlatformKey);
+});
 
 function showToastNear(anchorSel, text) {
   const toast = document.createElement('p');
@@ -960,7 +1115,8 @@ function bindTokenPlatform({
   ui,
   successToast,
   emptyAlert,
-  buildConfigBody
+  buildConfigBody,
+  platformKey
 }) {
   async function reload() {
     try {
@@ -988,6 +1144,11 @@ function bindTokenPlatform({
       if ($(tokenInputSel)) $(tokenInputSel).value = '';
       applyTokenConfig(res, ui);
       showToastNear(ui.configLineSel, successToast);
+      if (platformKey && state) {
+        const statusKey = platformKey === 'dp' ? 'donatepay' : 'donatex';
+        if (res[statusKey]) applyState({ ...state, [statusKey]: res[statusKey] });
+        maybeCloseModalAfterConnect(platformKey);
+      }
     } catch (err) {
       alert(String(err.message || err));
     }
@@ -997,6 +1158,7 @@ function bindTokenPlatform({
     try {
       const res = await api('POST', connectUrl);
       if (res.error) throw new Error(res.error);
+      if (platformKey) maybeCloseModalAfterConnect(platformKey);
     } catch (err) {
       alert(String(err.message || err));
     }
@@ -1040,6 +1202,7 @@ const donatePayPlatform = bindTokenPlatform({
   ui: donatePayUi,
   successToast: 'DonatePay подключён',
   emptyAlert: 'Укажи API access token DonatePay.',
+  platformKey: 'dp',
   buildConfigBody: ({ accessToken }) => ({
     accessToken: accessToken || undefined,
     region: $('#dpRegion')?.value || 'ru'
@@ -1057,7 +1220,8 @@ const donateXPlatform = bindTokenPlatform({
   disconnectBtnSel: '#disconnectDxBtn',
   ui: donateXUi,
   successToast: 'DonateX подключён',
-  emptyAlert: 'Укажи API-токен DonateX.'
+  emptyAlert: 'Укажи API-токен DonateX.',
+  platformKey: 'dx'
 });
 
 function loadDonatePayPanel() {

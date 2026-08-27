@@ -389,7 +389,13 @@ function enterTravelPx() {
 
 function applyStageTransform(stage, scale = stripScale()) {
   if (!stage) return;
-  stage.style.transform = `translate(-50%, calc(-50% + ${stageEnterOffsetY}px)) scale(${scale})`;
+  // Центрируем только «ядро» (бренд + лента), чтобы блок результата
+  // мог расти вниз и не поднимал рулетку.
+  const core = stage.querySelector('.stage-core');
+  const coreTop = core?.offsetTop || 0;
+  const coreH = Math.max(1, core?.offsetHeight || 200);
+  const anchorY = coreTop + Math.round(coreH / 2);
+  stage.style.transform = `translate(-50%, calc(-${anchorY}px + ${stageEnterOffsetY}px)) scale(${scale})`;
 }
 
 function waitTransition(el, property, fallbackMs) {

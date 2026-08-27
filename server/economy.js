@@ -5,6 +5,13 @@
  * - без донатов: каждые resetMinutes порог падает на step (не ниже базы)
  */
 
+const {
+  pickFromCategories,
+  expandCategoriesToTasks,
+  ensureCategories,
+  normalizeCategory
+} = require('./categories');
+
 function roundMoney(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
@@ -21,6 +28,11 @@ function pickWeightedTask(tasks) {
   return active[active.length - 1];
 }
 
+function syncDerivedTasks(state) {
+  state.categories = ensureCategories(state);
+  state.tasks = expandCategoriesToTasks(state.categories);
+}
+
 function createEconomy(getState, setState, emit) {
   let spinning = false;
   let spinQueue = [];
@@ -29,6 +41,7 @@ function createEconomy(getState, setState, emit) {
 
   function snapshot() {
     const state = getState();
+    syncDerivedTasks(state);
     const { progress, currentThreshold } = state.economy;
     return {
       settings: state.settings,
@@ -36,6 +49,7 @@ function createEconomy(getState, setState, emit) {
         ...state.economy,
         displayProgress: progressForDisplay(progress, currentThreshold)
       },
+      categories: state.categories,
       tasks: state.tasks,
       recentDonations: state.recentDonations.slice(0, 20),
       recentSpins: state.recentSpins.slice(0, 20),
@@ -187,7 +201,8 @@ function createEconomy(getState, setState, emit) {
 
   function enqueueSpin(meta = {}) {
     const state = getState();
-    const task = pickWeightedTask(state.tasks);
+    syncDerivedTasks(state);
+    const task = pickFromCategories(state.categories) || pickWeightedTask(state.tasks);
     if (!task) {
       emit('error', { code: 'no_tasks', message: 'Нет заданий для крутки' });
       broadcast();
@@ -200,7 +215,10 @@ function createEconomy(getState, setState, emit) {
         id: task.id,
         text: task.text,
         weight: task.weight,
-        spoiler: task.spoiler || ''
+        spoiler: task.spoiler || '',
+        rarity: task.rarity,
+        categoryId: task.categoryId,
+        categoryName: task.categoryName
       },
       tasksSnapshot: state.tasks.map((t) => ({
         id: t.id,
@@ -347,15 +365,29 @@ function createEconomy(getState, setState, emit) {
     scheduleResetCheck();
   }
 
-  function setTasks(tasks) {
+  function setCategories(categories) {
     const state = getState();
-    state.tasks = tasks;
+    state.categories = (categories || []).map((c, i) =>
+      normalizeCategory(c, `cat_${i}`)
+    );
+    syncDerivedTasks(state);
+    setState(state);
+    broadcast();
+  }
+
+  function setTasks(tasks) {
+    // совместимость: плоский список → одна категория
+    const state = getState();
+    const { migrateTasksToCategories } = require('./categories');
+    state.categories = migrateTasksToCategories(tasks);
+    syncDerivedTasks(state);
     setState(state);
     broadcast();
   }
 
   function forceSpin() {
     const state = getState();
+    syncDerivedTasks(state);
     if (!state.tasks.length) {
       emit('error', { code: 'no_tasks', message: 'Нет заданий для крутки' });
       return { ok: false, reason: 'no_tasks' };
@@ -373,6 +405,7 @@ function createEconomy(getState, setState, emit) {
     resetThreshold,
     updateSettings,
     setTasks,
+    setCategories,
     forceSpin,
     clearLogs,
     checkAutoDecay,

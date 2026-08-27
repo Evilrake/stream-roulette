@@ -18,11 +18,34 @@
       </div>
       <div class="status-row">
         <span id="wsBadge" class="badge warn">WS…</span>
-        <span id="daBadge" class="badge">DA</span>
-        <span id="dpBadge" class="badge">DP</span>
-        <span id="dxBadge" class="badge">DX</span>
-        <button type="button" id="openRouletteBtn" class="btn">Окно рулетки</button>
-        <button type="button" id="openHudBtn" class="btn">Окно порога</button>
+        <div class="platform-menu header-platform-menu" id="platformMenu">
+          <button type="button" class="btn platform-menu-btn" id="platformMenuBtn" aria-expanded="false" aria-haspopup="listbox">
+            <span class="platform-menu-icon" aria-hidden="true">☰</span>
+            <span id="platformMenuLabel">Donation Alerts</span>
+            <em id="platformHeaderStatus" class="platform-menu-status">…</em>
+            <span class="platform-menu-caret" aria-hidden="true">▾</span>
+          </button>
+          <ul class="platform-menu-list" id="platformMenuList" role="listbox" hidden>
+            <li role="option">
+              <button type="button" class="platform-menu-item is-active" data-platform="da">
+                <span>Donation Alerts</span>
+                <em class="platform-menu-status" data-status-for="da">…</em>
+              </button>
+            </li>
+            <li role="option">
+              <button type="button" class="platform-menu-item" data-platform="dp">
+                <span>DonatePay</span>
+                <em class="platform-menu-status" data-status-for="dp">…</em>
+              </button>
+            </li>
+            <li role="option">
+              <button type="button" class="platform-menu-item" data-platform="dx">
+                <span>DonateX</span>
+                <em class="platform-menu-status" data-status-for="dx">…</em>
+              </button>
+            </li>
+          </ul>
+        </div>
       </div>
     </header>
 
@@ -41,12 +64,13 @@
             <div class="obs-link-card">
               <div class="obs-link-head">
                 <strong>1. Рулетка (прокрут)</strong>
-                <span class="obs-size">≈ 960 × 360</span>
+                <span class="obs-size">≈ 960 × 540</span>
               </div>
               <code id="obsRouletteUrl" class="obs-url">http://127.0.0.1:3847/overlay/roulette/</code>
               <div class="actions">
                 <button type="button" class="btn primary" data-copy="obsRouletteUrl">Копировать</button>
                 <button type="button" class="btn" id="openObsRoulette">Открыть в браузере</button>
+                <button type="button" class="btn" id="openRouletteBtn">Окно рулетки</button>
               </div>
             </div>
             <div class="obs-link-card">
@@ -58,6 +82,7 @@
               <div class="actions">
                 <button type="button" class="btn primary" data-copy="obsHudUrl">Копировать</button>
                 <button type="button" class="btn" id="openObsHud">Открыть в браузере</button>
+                <button type="button" class="btn" id="openHudBtn">Окно порога</button>
               </div>
             </div>
           </div>
@@ -218,152 +243,20 @@
         </div>
       </article>
 
-      <article class="panel da-panel integrations-panel" data-panel="integrations">
-        <button type="button" class="panel-toggle" aria-expanded="true">
-          <span class="panel-toggle-title">Платформы донатов</span>
-          <span class="panel-caret" aria-hidden="true">▾</span>
-        </button>
-        <div class="panel-body">
-          <div class="integrations-head">
-            <p class="hint">
-              Выбери платформу в меню, подключи, затем открой следующую. Можно держать несколько сразу — донаты суммируются.
-            </p>
-            <div class="platform-menu" id="platformMenu">
-              <button type="button" class="btn platform-menu-btn" id="platformMenuBtn" aria-expanded="false" aria-haspopup="listbox">
-                <span class="platform-menu-icon" aria-hidden="true">☰</span>
-                <span id="platformMenuLabel">Donation Alerts</span>
-                <span class="platform-menu-caret" aria-hidden="true">▾</span>
-              </button>
-              <ul class="platform-menu-list" id="platformMenuList" role="listbox" hidden>
-                <li role="option">
-                  <button type="button" class="platform-menu-item is-active" data-platform="da">
-                    <span>Donation Alerts</span>
-                    <em class="platform-menu-status" data-status-for="da">…</em>
-                  </button>
-                </li>
-                <li role="option">
-                  <button type="button" class="platform-menu-item" data-platform="dp">
-                    <span>DonatePay</span>
-                    <em class="platform-menu-status" data-status-for="dp">…</em>
-                  </button>
-                </li>
-                <li role="option">
-                  <button type="button" class="platform-menu-item" data-platform="dx">
-                    <span>DonateX</span>
-                    <em class="platform-menu-status" data-status-for="dx">…</em>
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="integration-block" data-platform-pane="da">
-            <h3>Donation Alerts</h3>
-            <p class="hint" id="daHint">
-              Создай приложение в DA, вставь ключи ниже и нажми «Сохранить и подключить».
-            </p>
-            <ol class="da-steps">
-              <li>Открой <a href="https://www.donationalerts.com/application/clients" target="_blank" rel="noopener">donationalerts.com/application/clients</a></li>
-              <li>Создай приложение. Redirect URI: <code id="daRedirect">http://127.0.0.1:3847/oauth/callback</code> (важно: именно <strong>127.0.0.1</strong>, не localhost)</li>
-              <li>Вставь Client ID и API Key приложения → «Сохранить и подключить» → войди в DA во всплывающем окне</li>
-            </ol>
-            <form id="daConfigForm" class="form-grid da-form">
-              <label class="span-2">Client ID
-                <input type="text" id="daClientId" autocomplete="off" placeholder="Из личного кабинета DA" />
-              </label>
-              <label class="span-2">API Key (secret)
-                <input type="password" id="daClientSecret" autocomplete="new-password" placeholder="Секрет приложения DA" />
-              </label>
-              <label class="span-2">Redirect URI
-                <input type="text" id="daRedirectInput" autocomplete="off" />
-              </label>
-            </form>
-            <p class="hint da-secret-hint" id="daSecretHint" hidden>
-              Secret уже сохранён — оставь поле пустым, если не меняешь ключ.
-            </p>
-            <div class="actions">
-              <button type="submit" form="daConfigForm" id="saveDaConfigBtn" class="btn primary">Сохранить и подключить</button>
-              <button type="button" id="connectDaBtn" class="btn">Переподключить</button>
-              <button type="button" id="disconnectDaBtn" class="btn">Отключить</button>
-            </div>
-            <p class="hint" id="daConfigLine">Ключи: …</p>
-            <p class="hint" id="daStatusLine">Статус: …</p>
-          </div>
-
-          <div class="integration-block" data-platform-pane="dp" hidden>
-            <h3>DonatePay</h3>
-            <ol class="da-steps">
-              <li>Открой <a href="https://donatepay.ru/page/api" target="_blank" rel="noopener">donatepay.ru/page/api</a> (для EU — donatepay.eu) и скопируй <strong>API access token</strong></li>
-              <li>Вставь токен ниже, выбери регион (.ru / .eu) → «Сохранить и подключить»</li>
-              <li>Бейдж <strong>DP: online</strong> — донаты DonatePay идут в рулетку</li>
-            </ol>
-            <form id="dpConfigForm" class="form-grid da-form">
-              <label class="span-2">API access token
-                <input type="password" id="dpAccessToken" autocomplete="new-password" placeholder="Токен из кабинета DonatePay" />
-              </label>
-              <label>Регион
-                <select id="dpRegion">
-                  <option value="ru">DonatePay.ru</option>
-                  <option value="eu">DonatePay.eu</option>
-                </select>
-              </label>
-            </form>
-            <p class="hint da-secret-hint" id="dpTokenHint" hidden>
-              Токен уже сохранён — оставь поле пустым, если не меняешь.
-            </p>
-            <div class="actions">
-              <button type="submit" form="dpConfigForm" class="btn primary">Сохранить и подключить</button>
-              <button type="button" id="connectDpBtn" class="btn">Переподключить</button>
-              <button type="button" id="disconnectDpBtn" class="btn">Отключить</button>
-            </div>
-            <p class="hint" id="dpConfigLine">Токен: …</p>
-            <p class="hint" id="dpStatusLine">Статус: …</p>
-          </div>
-
-          <div class="integration-block" data-platform-pane="dx" hidden>
-            <h3>DonateX</h3>
-            <ol class="da-steps">
-              <li>В кабинете <a href="https://admin.donatex.gg/" target="_blank" rel="noopener">DonateX</a> открой <strong>Настройки → «API и Доступ»</strong></li>
-              <li>Скопируй API-токен и вставь ниже → «Сохранить и подключить»</li>
-              <li>Бейдж <strong>DX: online</strong> — донаты DonateX идут в рулетку</li>
-            </ol>
-            <form id="dxConfigForm" class="form-grid da-form">
-              <label class="span-2">API-токен
-                <input type="password" id="dxAccessToken" autocomplete="new-password" placeholder="Токен из Настройки → API и Доступ" />
-              </label>
-            </form>
-            <p class="hint da-secret-hint" id="dxTokenHint" hidden>
-              Токен уже сохранён — оставь поле пустым, если не меняешь.
-            </p>
-            <div class="actions">
-              <button type="submit" form="dxConfigForm" class="btn primary">Сохранить и подключить</button>
-              <button type="button" id="connectDxBtn" class="btn">Переподключить</button>
-              <button type="button" id="disconnectDxBtn" class="btn">Отключить</button>
-            </div>
-            <p class="hint" id="dxConfigLine">Токен: …</p>
-            <p class="hint" id="dxStatusLine">Статус: …</p>
-          </div>
-        </div>
-      </article>
-
       <article class="panel tasks" data-panel="tasks">
         <button type="button" class="panel-toggle" aria-expanded="true">
           <span class="panel-toggle-title">Задания</span>
           <span class="panel-caret" aria-hidden="true">▾</span>
         </button>
         <div class="panel-body">
-          <p class="hint">Спойлер — картинка на карточке до раскрытия (URL или загрузка файла).</p>
-          <form id="addTaskForm" class="add-task">
-            <input type="text" id="taskText" placeholder="Текст задания" required maxlength="80" />
-            <input type="number" id="taskWeight" min="0.1" step="0.1" value="1" title="Вес (шанс)" />
-            <input type="text" id="taskSpoiler" placeholder="URL спойлера (необязательно)" />
-            <label class="file-btn btn">
-              Файл
-              <input type="file" id="taskSpoilerFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
-            </label>
-            <button type="submit" class="btn primary">Добавить</button>
-          </form>
-          <ul id="taskList" class="task-list"></ul>
+          <p class="hint">
+            Как в Donation Alerts: категория → карточки через запятую → редкость.
+            Шанс выпадения считается относительно включённых категорий.
+          </p>
+          <div id="categoryList" class="category-list"></div>
+          <div class="actions" style="margin-top:14px">
+            <button type="button" id="addCategoryBtn" class="btn primary">Добавить категорию</button>
+          </div>
         </div>
       </article>
 
@@ -390,6 +283,102 @@
       </article>
     </section>
   </div>
+
+  <div id="platformModal" class="platform-modal hidden" aria-hidden="true">
+    <div class="platform-modal-backdrop" data-close-modal></div>
+    <div class="platform-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="platformModalTitle">
+      <div class="platform-modal-head">
+        <h2 id="platformModalTitle">Donation Alerts</h2>
+        <button type="button" class="platform-modal-close" data-close-modal aria-label="Закрыть">✕</button>
+      </div>
+      <div class="platform-modal-body">
+        <div class="integration-block" data-platform-pane="da">
+          <p class="hint" id="daHint">
+            Создай приложение в DA, вставь ключи ниже и нажми «Сохранить и подключить».
+          </p>
+          <ol class="da-steps">
+            <li>Открой <a href="https://www.donationalerts.com/application/clients" target="_blank" rel="noopener">donationalerts.com/application/clients</a></li>
+            <li>Создай приложение. Redirect URI: <code id="daRedirect">http://127.0.0.1:3847/oauth/callback</code> (важно: именно <strong>127.0.0.1</strong>, не localhost)</li>
+            <li>Вставь Client ID и API Key → «Сохранить и подключить» → войди в DA во всплывающем окне</li>
+          </ol>
+          <form id="daConfigForm" class="form-grid da-form">
+            <label class="span-2">Client ID
+              <input type="text" id="daClientId" autocomplete="off" placeholder="Из личного кабинета DA" />
+            </label>
+            <label class="span-2">API Key (secret)
+              <input type="password" id="daClientSecret" autocomplete="new-password" placeholder="Секрет приложения DA" />
+            </label>
+            <label class="span-2">Redirect URI
+              <input type="text" id="daRedirectInput" autocomplete="off" />
+            </label>
+          </form>
+          <p class="hint da-secret-hint" id="daSecretHint" hidden>
+            Secret уже сохранён — оставь поле пустым, если не меняешь ключ.
+          </p>
+          <div class="actions">
+            <button type="submit" form="daConfigForm" id="saveDaConfigBtn" class="btn primary">Сохранить и подключить</button>
+            <button type="button" id="connectDaBtn" class="btn">Переподключить</button>
+            <button type="button" id="disconnectDaBtn" class="btn">Отключить</button>
+          </div>
+          <p class="hint" id="daConfigLine">Ключи: …</p>
+          <p class="hint" id="daStatusLine">Статус: …</p>
+        </div>
+
+        <div class="integration-block" data-platform-pane="dp" hidden>
+          <ol class="da-steps">
+            <li>Открой <a href="https://donatepay.ru/page/api" target="_blank" rel="noopener">donatepay.ru/page/api</a> (для EU — donatepay.eu) и скопируй <strong>API access token</strong></li>
+            <li>Вставь токен ниже, выбери регион (.ru / .eu) → «Сохранить и подключить»</li>
+            <li>Статус <strong>online</strong> — донаты DonatePay идут в рулетку</li>
+          </ol>
+          <form id="dpConfigForm" class="form-grid da-form">
+            <label class="span-2">API access token
+              <input type="password" id="dpAccessToken" autocomplete="new-password" placeholder="Токен из кабинета DonatePay" />
+            </label>
+            <label>Регион
+              <select id="dpRegion">
+                <option value="ru">DonatePay.ru</option>
+                <option value="eu">DonatePay.eu</option>
+              </select>
+            </label>
+          </form>
+          <p class="hint da-secret-hint" id="dpTokenHint" hidden>
+            Токен уже сохранён — оставь поле пустым, если не меняешь.
+          </p>
+          <div class="actions">
+            <button type="submit" form="dpConfigForm" class="btn primary">Сохранить и подключить</button>
+            <button type="button" id="connectDpBtn" class="btn">Переподключить</button>
+            <button type="button" id="disconnectDpBtn" class="btn">Отключить</button>
+          </div>
+          <p class="hint" id="dpConfigLine">Токен: …</p>
+          <p class="hint" id="dpStatusLine">Статус: …</p>
+        </div>
+
+        <div class="integration-block" data-platform-pane="dx" hidden>
+          <ol class="da-steps">
+            <li>В кабинете <a href="https://admin.donatex.gg/" target="_blank" rel="noopener">DonateX</a> открой <strong>Настройки → «API и Доступ»</strong></li>
+            <li>Скопируй API-токен и вставь ниже → «Сохранить и подключить»</li>
+            <li>Статус <strong>online</strong> — донаты DonateX идут в рулетку</li>
+          </ol>
+          <form id="dxConfigForm" class="form-grid da-form">
+            <label class="span-2">API-токен
+              <input type="password" id="dxAccessToken" autocomplete="new-password" placeholder="Токен из Настройки → API и Доступ" />
+            </label>
+          </form>
+          <p class="hint da-secret-hint" id="dxTokenHint" hidden>
+            Токен уже сохранён — оставь поле пустым, если не меняешь.
+          </p>
+          <div class="actions">
+            <button type="submit" form="dxConfigForm" class="btn primary">Сохранить и подключить</button>
+            <button type="button" id="connectDxBtn" class="btn">Переподключить</button>
+            <button type="button" id="disconnectDxBtn" class="btn">Отключить</button>
+          </div>
+          <p class="hint" id="dxConfigLine">Токен: …</p>
+          <p class="hint" id="dxStatusLine">Статус: …</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
