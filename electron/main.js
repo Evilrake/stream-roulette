@@ -50,61 +50,74 @@ function createAdminWindow() {
   });
 }
 
-function createRouletteWindow() {
-  if (rouletteWin && !rouletteWin.isDestroyed()) {
-    rouletteWin.focus();
-    return;
+function createOverlayBrowserWindow(opts) {
+  const {
+    getWin,
+    setWin,
+    width,
+    height,
+    minWidth,
+    minHeight,
+    title,
+    pathSuffix
+  } = opts;
+
+  const existing = getWin();
+  if (existing && !existing.isDestroyed()) {
+    existing.focus();
+    return existing;
   }
 
-  rouletteWin = new BrowserWindow({
+  const win = new BrowserWindow({
+    width,
+    height,
+    minWidth,
+    minHeight,
+    title,
+    transparent: true,
+    backgroundColor: '#00000000',
+    frame: true,
+    alwaysOnTop: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  win.loadURL(`${baseUrl}${pathSuffix}`);
+  win.on('closed', () => setWin(null));
+  setWin(win);
+  return win;
+}
+
+function createRouletteWindow() {
+  createOverlayBrowserWindow({
+    getWin: () => rouletteWin,
+    setWin: (w) => {
+      rouletteWin = w;
+    },
     width: 960,
     height: 360,
     minWidth: 480,
     minHeight: 220,
     title: 'Оверлей — рулетка',
-    transparent: true,
-    backgroundColor: '#00000000',
-    frame: true,
-    alwaysOnTop: true,
-    autoHideMenuBar: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
-
-  rouletteWin.loadURL(`${baseUrl}/overlay/roulette/`);
-  rouletteWin.on('closed', () => {
-    rouletteWin = null;
+    pathSuffix: '/overlay/roulette/'
   });
 }
 
 function createHudWindow() {
-  if (hudWin && !hudWin.isDestroyed()) {
-    hudWin.focus();
-    return;
-  }
-
-  hudWin = new BrowserWindow({
+  createOverlayBrowserWindow({
+    getWin: () => hudWin,
+    setWin: (w) => {
+      hudWin = w;
+    },
     width: 560,
     height: 420,
     minWidth: 360,
     minHeight: 280,
     title: 'Оверлей — порог',
-    transparent: true,
-    backgroundColor: '#00000000',
-    frame: true,
-    alwaysOnTop: true,
-    autoHideMenuBar: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
-
-  hudWin.loadURL(`${baseUrl}/overlay/hud/`);
-  hudWin.on('closed', () => {
-    hudWin = null;
+    pathSuffix: '/overlay/hud/'
   });
 }
 

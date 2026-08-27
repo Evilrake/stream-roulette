@@ -1,30 +1,12 @@
-const fs = require('fs');
-const path = require('path');
-const { getDataDir } = require('./paths');
+const { createJsonConfigStore, tokenHint, configSource } = require('./json-config');
 
-const CONFIG_FILE_NAME = 'donatex-config.json';
-
-function configFile() {
-  return path.join(getDataDir(), CONFIG_FILE_NAME);
-}
-
-function ensureDir() {
-  const dir = getDataDir();
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
+const store = createJsonConfigStore({ fileName: 'donatex-config.json' });
 
 function loadSavedConfig() {
-  try {
-    const file = configFile();
-    if (!fs.existsSync(file)) return null;
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return null;
-  }
+  return store.load();
 }
 
 function saveConfig({ accessToken }) {
-  ensureDir();
   const current = loadSavedConfig() || {};
   const fromEnv = process.env.DONATEX_ACCESS_TOKEN || '';
   const next = {
@@ -33,13 +15,12 @@ function saveConfig({ accessToken }) {
       : String(current.accessToken || fromEnv || '').trim()
   };
   if (!next.accessToken) throw new Error('API-токен DonateX обязателен');
-  fs.writeFileSync(configFile(), JSON.stringify(next, null, 2), 'utf8');
+  store.save(next);
   return getConfigForApi();
 }
 
 function clearConfig() {
-  const file = configFile();
-  if (fs.existsSync(file)) fs.unlinkSync(file);
+  store.clear();
 }
 
 function getConfig() {
@@ -56,10 +37,8 @@ function getConfigForApi() {
   return {
     hasAccessToken: Boolean(cfg.accessToken),
     configured: Boolean(cfg.accessToken),
-    source: fromEnv ? 'env' : saved ? 'file' : 'none',
-    tokenHint: cfg.accessToken
-      ? `${cfg.accessToken.slice(0, 4)}…${cfg.accessToken.slice(-4)}`
-      : null
+    source: configSource(fromEnv, Boolean(saved)),
+    tokenHint: tokenHint(cfg.accessToken)
   };
 }
 

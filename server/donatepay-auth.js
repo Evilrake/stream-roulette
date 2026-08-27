@@ -1,30 +1,17 @@
-const fs = require('fs');
-const path = require('path');
-const { getDataDir } = require('./paths');
+const { createJsonConfigStore, tokenHint, configSource } = require('./json-config');
 
-const CONFIG_FILE_NAME = 'donatepay-config.json';
+const store = createJsonConfigStore({ fileName: 'donatepay-config.json' });
 
-function configFile() {
-  return path.join(getDataDir(), CONFIG_FILE_NAME);
-}
-
-function ensureDir() {
-  const dir = getDataDir();
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+function normalizeRegion(region) {
+  const r = String(region || 'ru').toLowerCase();
+  return r === 'eu' ? 'eu' : 'ru';
 }
 
 function loadSavedConfig() {
-  try {
-    const file = configFile();
-    if (!fs.existsSync(file)) return null;
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return null;
-  }
+  return store.load();
 }
 
 function saveConfig({ accessToken, region }) {
-  ensureDir();
   const current = loadSavedConfig() || {};
   const fromEnv = process.env.DONATEPAY_ACCESS_TOKEN || '';
   const next = {
@@ -34,18 +21,12 @@ function saveConfig({ accessToken, region }) {
     region: normalizeRegion(region || current.region || 'ru')
   };
   if (!next.accessToken) throw new Error('API-токен DonatePay обязателен');
-  fs.writeFileSync(configFile(), JSON.stringify(next, null, 2), 'utf8');
+  store.save(next);
   return getConfigForApi();
 }
 
 function clearConfig() {
-  const file = configFile();
-  if (fs.existsSync(file)) fs.unlinkSync(file);
-}
-
-function normalizeRegion(region) {
-  const r = String(region || 'ru').toLowerCase();
-  return r === 'eu' ? 'eu' : 'ru';
+  store.clear();
 }
 
 function getConfig() {
@@ -66,10 +47,8 @@ function getConfigForApi() {
     region: cfg.region,
     hasAccessToken: Boolean(cfg.accessToken),
     configured: Boolean(cfg.accessToken),
-    source: fromEnv ? 'env' : saved ? 'file' : 'none',
-    tokenHint: cfg.accessToken
-      ? `${cfg.accessToken.slice(0, 4)}…${cfg.accessToken.slice(-4)}`
-      : null
+    source: configSource(fromEnv, Boolean(saved)),
+    tokenHint: tokenHint(cfg.accessToken)
   };
 }
 

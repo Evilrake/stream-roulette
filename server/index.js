@@ -6,6 +6,7 @@ const { WebSocketServer } = require('ws');
 
 const { getPublicDir, getSpoilersDir, getSoundsDir, getEnvFilePath } = require('./paths');
 const { loadState, saveState, newId } = require('./store');
+const { saveDataUrlUpload } = require('./upload');
 const { createEconomy } = require('./economy');
 const { createDonationAlertsClient } = require('./da');
 const daAuth = require('./da-auth');
@@ -198,55 +199,54 @@ function startServer(port = DEFAULT_PORT) {
   });
 
   app.post('/api/upload/spoiler', (req, res) => {
-    const dataUrl = String(req.body?.dataUrl || '');
-    const match = /^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/i.exec(dataUrl);
-    if (!match) {
-      res.status(400).json({ error: 'Нужен dataUrl картинки (png/jpg/webp/gif)' });
+    const result = saveDataUrlUpload({
+      dataUrl: req.body?.dataUrl,
+      mimePattern: /^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/i,
+      resolveExt: (mime) =>
+        mime.includes('png')
+          ? 'png'
+          : mime.includes('webp')
+            ? 'webp'
+            : mime.includes('gif')
+              ? 'gif'
+              : 'jpg',
+      maxBytes: 6 * 1024 * 1024,
+      dir: SPOILERS,
+      urlPrefix: '/spoilers',
+      newId: () => newId('spoiler'),
+      badTypeError: 'Нужен dataUrl картинки (png/jpg/webp/gif)',
+      tooLargeError: 'Файл слишком большой (макс 6 МБ)'
+    });
+    if (result.error) {
+      res.status(result.status).json({ error: result.error });
       return;
     }
-    const ext = match[1].toLowerCase().includes('png')
-      ? 'png'
-      : match[1].toLowerCase().includes('webp')
-        ? 'webp'
-        : match[1].toLowerCase().includes('gif')
-          ? 'gif'
-          : 'jpg';
-    const buf = Buffer.from(match[2], 'base64');
-    if (buf.length > 6 * 1024 * 1024) {
-      res.status(400).json({ error: 'Файл слишком большой (макс 6 МБ)' });
-      return;
-    }
-    const dir = SPOILERS;
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const name = `${newId('spoiler')}.${ext}`;
-    fs.writeFileSync(path.join(dir, name), buf);
-    res.json({ url: `/spoilers/${name}` });
+    res.json({ url: result.url });
   });
 
   app.post('/api/upload/sound', (req, res) => {
-    const dataUrl = String(req.body?.dataUrl || '');
-    const match =
-      /^data:(audio\/(?:mpeg|mp3|wav|ogg|webm|x-wav|wave)|application\/octet-stream);base64,(.+)$/i.exec(
-        dataUrl
-      );
-    if (!match) {
-      res.status(400).json({ error: 'Нужен аудиофайл (mp3/wav/ogg/webm)' });
+    const result = saveDataUrlUpload({
+      dataUrl: req.body?.dataUrl,
+      mimePattern:
+        /^data:(audio\/(?:mpeg|mp3|wav|ogg|webm|x-wav|wave)|application\/octet-stream);base64,(.+)$/i,
+      resolveExt: (mime) => {
+        if (mime.includes('wav')) return 'wav';
+        if (mime.includes('ogg')) return 'ogg';
+        if (mime.includes('webm')) return 'webm';
+        return 'mp3';
+      },
+      maxBytes: 8 * 1024 * 1024,
+      dir: SOUNDS,
+      urlPrefix: '/sounds',
+      newId: () => newId('sound'),
+      badTypeError: 'Нужен аудиофайл (mp3/wav/ogg/webm)',
+      tooLargeError: 'Файл слишком большой (макс 8 МБ)'
+    });
+    if (result.error) {
+      res.status(result.status).json({ error: result.error });
       return;
     }
-    const mime = match[1].toLowerCase();
-    let ext = 'mp3';
-    if (mime.includes('wav')) ext = 'wav';
-    else if (mime.includes('ogg')) ext = 'ogg';
-    else if (mime.includes('webm')) ext = 'webm';
-    const buf = Buffer.from(match[2], 'base64');
-    if (buf.length > 8 * 1024 * 1024) {
-      res.status(400).json({ error: 'Файл слишком большой (макс 8 МБ)' });
-      return;
-    }
-    if (!fs.existsSync(SOUNDS)) fs.mkdirSync(SOUNDS, { recursive: true });
-    const name = `${newId('sound')}.${ext}`;
-    fs.writeFileSync(path.join(SOUNDS, name), buf);
-    res.json({ url: `/sounds/${name}` });
+    res.json({ url: result.url });
   });
 
   app.post('/api/donate/test', (req, res) => {

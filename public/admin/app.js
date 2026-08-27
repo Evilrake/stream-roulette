@@ -823,8 +823,6 @@ async function loadDaPanel() {
 }
 
 loadDaPanel();
-loadDonatePayPanel();
-loadDonateXPanel();
 
 const PLATFORM_LABELS = {
   da: 'Donation Alerts',
@@ -949,122 +947,129 @@ function applyTokenConfig(info, {
   }
 }
 
-async function loadDonatePayPanel() {
-  try {
-    const info = await fetch('/api/donatepay/status').then((r) => r.json());
-    applyTokenConfig(info, {
-      hintSel: '#dpTokenHint',
-      configLineSel: '#dpConfigLine',
-      connectBtnSel: '#connectDpBtn',
-      regionSel: '#dpRegion',
-      emptyText: 'Токен: не задан — вставь API access token выше',
-      savedText: 'Токен'
-    });
-  } catch {
-    /* ignore */
+function bindTokenPlatform({
+  statusUrl,
+  configUrl,
+  connectUrl,
+  disconnectUrl,
+  formSel,
+  tokenInputSel,
+  regionSel,
+  connectBtnSel,
+  disconnectBtnSel,
+  ui,
+  successToast,
+  emptyAlert,
+  buildConfigBody
+}) {
+  async function reload() {
+    try {
+      const info = await fetch(statusUrl).then((r) => r.json());
+      applyTokenConfig(info, ui);
+    } catch {
+      /* ignore */
+    }
   }
+
+  $(formSel)?.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const accessToken = $(tokenInputSel)?.value?.trim() || '';
+    try {
+      const status = await fetch(statusUrl).then((r) => r.json()).catch(() => null);
+      if (!accessToken && !status?.config?.configured) {
+        alert(emptyAlert);
+        return;
+      }
+      const body = buildConfigBody
+        ? buildConfigBody({ accessToken, status })
+        : { accessToken: accessToken || undefined };
+      const res = await api('POST', configUrl, body);
+      if (res.error) throw new Error(res.error);
+      if ($(tokenInputSel)) $(tokenInputSel).value = '';
+      applyTokenConfig(res, ui);
+      showToastNear(ui.configLineSel, successToast);
+    } catch (err) {
+      alert(String(err.message || err));
+    }
+  });
+
+  $(connectBtnSel)?.addEventListener('click', async () => {
+    try {
+      const res = await api('POST', connectUrl);
+      if (res.error) throw new Error(res.error);
+    } catch (err) {
+      alert(String(err.message || err));
+    }
+  });
+
+  $(disconnectBtnSel)?.addEventListener('click', async () => {
+    await api('POST', disconnectUrl);
+    await reload();
+  });
+
+  return { reload };
 }
 
-async function loadDonateXPanel() {
-  try {
-    const info = await fetch('/api/donatex/status').then((r) => r.json());
-    applyTokenConfig(info, {
-      hintSel: '#dxTokenHint',
-      configLineSel: '#dxConfigLine',
-      connectBtnSel: '#connectDxBtn',
-      emptyText: 'Токен: не задан — вставь API-токен выше',
-      savedText: 'Токен'
-    });
-  } catch {
-    /* ignore */
-  }
+const donatePayUi = {
+  hintSel: '#dpTokenHint',
+  configLineSel: '#dpConfigLine',
+  connectBtnSel: '#connectDpBtn',
+  regionSel: '#dpRegion',
+  emptyText: 'Токен: не задан — вставь API access token выше',
+  savedText: 'Токен'
+};
+
+const donateXUi = {
+  hintSel: '#dxTokenHint',
+  configLineSel: '#dxConfigLine',
+  connectBtnSel: '#connectDxBtn',
+  emptyText: 'Токен: не задан — вставь API-токен выше',
+  savedText: 'Токен'
+};
+
+const donatePayPlatform = bindTokenPlatform({
+  statusUrl: '/api/donatepay/status',
+  configUrl: '/api/donatepay/config',
+  connectUrl: '/api/donatepay/connect',
+  disconnectUrl: '/api/donatepay/disconnect',
+  formSel: '#dpConfigForm',
+  tokenInputSel: '#dpAccessToken',
+  regionSel: '#dpRegion',
+  connectBtnSel: '#connectDpBtn',
+  disconnectBtnSel: '#disconnectDpBtn',
+  ui: donatePayUi,
+  successToast: 'DonatePay подключён',
+  emptyAlert: 'Укажи API access token DonatePay.',
+  buildConfigBody: ({ accessToken }) => ({
+    accessToken: accessToken || undefined,
+    region: $('#dpRegion')?.value || 'ru'
+  })
+});
+
+const donateXPlatform = bindTokenPlatform({
+  statusUrl: '/api/donatex/status',
+  configUrl: '/api/donatex/config',
+  connectUrl: '/api/donatex/connect',
+  disconnectUrl: '/api/donatex/disconnect',
+  formSel: '#dxConfigForm',
+  tokenInputSel: '#dxAccessToken',
+  connectBtnSel: '#connectDxBtn',
+  disconnectBtnSel: '#disconnectDxBtn',
+  ui: donateXUi,
+  successToast: 'DonateX подключён',
+  emptyAlert: 'Укажи API-токен DonateX.'
+});
+
+function loadDonatePayPanel() {
+  return donatePayPlatform.reload();
 }
 
-$('#dpConfigForm')?.addEventListener('submit', async (ev) => {
-  ev.preventDefault();
-  const accessToken = $('#dpAccessToken')?.value?.trim() || '';
-  const region = $('#dpRegion')?.value || 'ru';
-  try {
-    const status = await fetch('/api/donatepay/status').then((r) => r.json()).catch(() => null);
-    if (!accessToken && !status?.config?.configured) {
-      alert('Укажи API access token DonatePay.');
-      return;
-    }
-    const res = await api('POST', '/api/donatepay/config', {
-      accessToken: accessToken || undefined,
-      region
-    });
-    if (res.error) throw new Error(res.error);
-    if ($('#dpAccessToken')) $('#dpAccessToken').value = '';
-    applyTokenConfig(res, {
-      hintSel: '#dpTokenHint',
-      configLineSel: '#dpConfigLine',
-      connectBtnSel: '#connectDpBtn',
-      regionSel: '#dpRegion',
-      emptyText: 'Токен: не задан — вставь API access token выше',
-      savedText: 'Токен'
-    });
-    showToastNear('#dpConfigLine', 'DonatePay подключён');
-  } catch (err) {
-    alert(String(err.message || err));
-  }
-});
+function loadDonateXPanel() {
+  return donateXPlatform.reload();
+}
 
-$('#connectDpBtn')?.addEventListener('click', async () => {
-  try {
-    const res = await api('POST', '/api/donatepay/connect');
-    if (res.error) throw new Error(res.error);
-  } catch (err) {
-    alert(String(err.message || err));
-  }
-});
-
-$('#disconnectDpBtn')?.addEventListener('click', async () => {
-  await api('POST', '/api/donatepay/disconnect');
-  await loadDonatePayPanel();
-});
-
-$('#dxConfigForm')?.addEventListener('submit', async (ev) => {
-  ev.preventDefault();
-  const accessToken = $('#dxAccessToken')?.value?.trim() || '';
-  try {
-    const status = await fetch('/api/donatex/status').then((r) => r.json()).catch(() => null);
-    if (!accessToken && !status?.config?.configured) {
-      alert('Укажи API-токен DonateX.');
-      return;
-    }
-    const res = await api('POST', '/api/donatex/config', {
-      accessToken: accessToken || undefined
-    });
-    if (res.error) throw new Error(res.error);
-    if ($('#dxAccessToken')) $('#dxAccessToken').value = '';
-    applyTokenConfig(res, {
-      hintSel: '#dxTokenHint',
-      configLineSel: '#dxConfigLine',
-      connectBtnSel: '#connectDxBtn',
-      emptyText: 'Токен: не задан — вставь API-токен выше',
-      savedText: 'Токен'
-    });
-    showToastNear('#dxConfigLine', 'DonateX подключён');
-  } catch (err) {
-    alert(String(err.message || err));
-  }
-});
-
-$('#connectDxBtn')?.addEventListener('click', async () => {
-  try {
-    const res = await api('POST', '/api/donatex/connect');
-    if (res.error) throw new Error(res.error);
-  } catch (err) {
-    alert(String(err.message || err));
-  }
-});
-
-$('#disconnectDxBtn')?.addEventListener('click', async () => {
-  await api('POST', '/api/donatex/disconnect');
-  await loadDonateXPanel();
-});
-
+loadDonatePayPanel();
+loadDonateXPanel();
 function fillObsUrls(info) {
   const origin = info?.baseUrl || location.origin;
   const roulette = info?.rouletteUrl || `${origin}/overlay/roulette/`;
