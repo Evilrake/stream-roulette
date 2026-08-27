@@ -1,6 +1,6 @@
 {
   "name": "stream-roulette",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Стрим-рулетка с Donation Alerts, DonatePay и DonateX: категории карточек, порог, звук и анимация",
   "author": "Stream Roulette",
   "main": "electron/main.js",
