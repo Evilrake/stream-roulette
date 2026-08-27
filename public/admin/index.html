@@ -352,18 +352,14 @@
           <span class="panel-caret" aria-hidden="true">▾</span>
         </button>
         <div class="panel-body">
-          <p class="hint">Спойлер — картинка на карточке до раскрытия (URL или загрузка файла).</p>
-          <form id="addTaskForm" class="add-task">
-            <input type="text" id="taskText" placeholder="Текст задания" required maxlength="80" />
-            <input type="number" id="taskWeight" min="0.1" step="0.1" value="1" title="Вес (шанс)" />
-            <input type="text" id="taskSpoiler" placeholder="URL спойлера (необязательно)" />
-            <label class="file-btn btn">
-              Файл
-              <input type="file" id="taskSpoilerFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
-            </label>
-            <button type="submit" class="btn primary">Добавить</button>
-          </form>
-          <ul id="taskList" class="task-list"></ul>
+          <p class="hint">
+            Как в Donation Alerts: категория → карточки через запятую → редкость.
+            Шанс выпадения считается относительно включённых категорий.
+          </p>
+          <div id="categoryList" class="category-list"></div>
+          <div class="actions" style="margin-top:14px">
+            <button type="button" id="addCategoryBtn" class="btn primary">Добавить категорию</button>
+          </div>
         </div>
       </article>
 
