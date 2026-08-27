@@ -98,9 +98,9 @@ function createRouletteWindow() {
       rouletteWin = w;
     },
     width: 960,
-    height: 360,
+    height: 540,
     minWidth: 480,
-    minHeight: 220,
+    minHeight: 360,
     title: 'Оверлей — рулетка',
     pathSuffix: '/overlay/roulette/'
   });
